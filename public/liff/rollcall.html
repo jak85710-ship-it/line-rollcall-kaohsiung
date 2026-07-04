@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>今日點名</title>
+  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .player-btn {
+      min-height: 64px;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+      transition: transform 0.1s ease, box-shadow 0.15s ease;
+    }
+    .player-btn:active {
+      transform: scale(0.98);
+    }
+    .status-pending { background: #f1f5f9; border-color: #cbd5e1; color: #475569; }
+    .status-present { background: #dcfce7; border-color: #22c55e; color: #166534; }
+    .status-absent  { background: #fee2e2; border-color: #ef4444; color: #991b1b; }
+  </style>
+</head>
+<body class="bg-slate-100 min-h-screen pb-32">
+  <div id="app" class="max-w-lg mx-auto">
+    <!-- Loading -->
+    <div id="loading" class="flex flex-col items-center justify-center min-h-screen gap-4">
+      <div class="w-12 h-12 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+      <p class="text-slate-600">載入點名系統...</p>
+    </div>
+
+    <!-- Error -->
+    <div id="error" class="hidden flex flex-col items-center justify-center min-h-screen p-6 text-center">
+      <div class="text-5xl mb-4">⚠️</div>
+      <h2 class="text-xl font-bold text-slate-800 mb-2">無法使用點名功能</h2>
+      <p id="error-msg" class="text-slate-600"></p>
+    </div>
+
+    <!-- Main -->
+    <div id="main" class="hidden">
+      <header class="bg-emerald-600 text-white px-5 pt-6 pb-5 rounded-b-3xl shadow-lg">
+        <p class="text-emerald-100 text-sm">國小運動團隊點名</p>
+        <h1 id="today-date" class="text-2xl font-bold mt-1"></h1>
+        <p id="coach-name" class="text-emerald-100 text-sm mt-1"></p>
+        <div class="flex gap-3 mt-4">
+          <div class="flex-1 bg-white/15 rounded-xl p-3 text-center">
+            <div id="count-present" class="text-2xl font-bold">0</div>
+            <div class="text-xs text-emerald-100">出席</div>
+          </div>
+          <div class="flex-1 bg-white/15 rounded-xl p-3 text-center">
+            <div id="count-absent" class="text-2xl font-bold">0</div>
+            <div class="text-xs text-emerald-100">缺席</div>
+          </div>
+          <div class="flex-1 bg-white/15 rounded-xl p-3 text-center">
+            <div id="count-pending" class="text-2xl font-bold">0</div>
+            <div class="text-xs text-emerald-100">未到</div>
+          </div>
+        </div>
+      </header>
+
+      <div class="px-4 pt-4">
+        <p class="text-sm text-slate-500 mb-3">
+          點擊姓名切換狀態：灰=未到 → 綠=出席 → 紅=缺席
+        </p>
+        <div id="player-list" class="space-y-3"></div>
+      </div>
+
+      <footer class="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 p-4 shadow-[0_-4px_20px_rgba(0,0,0,0.08)]">
+        <div class="max-w-lg mx-auto">
+          <button
+            id="submit-btn"
+            class="w-full bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-lg font-bold py-4 rounded-2xl shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            確認送出
+          </button>
+        </div>
+      </footer>
+    </div>
+
+    <!-- Success modal -->
+    <div id="success-modal" class="hidden fixed inset-0 bg-black/50 flex items-end justify-center z-50">
+      <div class="bg-white w-full max-w-lg rounded-t-3xl p-6 pb-10">
+        <div class="text-center">
+          <div class="text-5xl mb-3">✅</div>
+          <h2 class="text-xl font-bold text-slate-800 mb-2">點名已送出</h2>
+          <p id="success-summary" class="text-slate-600 mb-6"></p>
+          <p id="email-status" class="text-sm text-slate-500 mb-6"></p>
+          <button id="close-btn" class="w-full bg-slate-800 text-white py-4 rounded-2xl font-bold">
+            關閉
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const STATUS_CYCLE = ['pending', 'present', 'absent'];
+    const STATUS_LABEL = { pending: '未到', present: '出席', absent: '缺席/請假' };
+
+    let idToken = '';
+    let players = [];
+    let isSubmitting = false;
+
+    const $ = (id) => document.getElementById(id);
+
+    function getApiBase() {
+      const params = new URLSearchParams(location.search);
+      return params.get('api') || location.origin;
+    }
+
+    function todayStr() {
+      return new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Taipei',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      }).format(new Date());
+    }
+
+    function formatDisplayDate(dateStr) {
+      const [y, m, d] = dateStr.split('-');
+      const weekdays = ['日', '一', '二', '三', '四', '五', '六'];
+      const day = new Date(`${dateStr}T12:00:00+08:00`).getDay();
+      return `${y} 年 ${Number(m)} 月 ${Number(d)} 日（週${weekdays[day]}）`;
+    }
+
+    function showError(msg) {
+      $('loading').classList.add('hidden');
+      $('main').classList.add('hidden');
+      $('error').classList.remove('hidden');
+      $('error-msg').textContent = msg;
+    }
+
+    async function apiFetch(path, options = {}) {
+      const res = await fetch(`${getApiBase()}${path}`, {
+        ...options,
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${idToken}`,
+          ...(options.headers || {}),
+        },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      return data;
+    }
+
+    function nextStatus(current) {
+      const idx = STATUS_CYCLE.indexOf(current);
+      return STATUS_CYCLE[(idx + 1) % STATUS_CYCLE.length];
+    }
+
+    function updateCounts() {
+      const present = players.filter((p) => p.status === 'present').length;
+      const absent = players.filter((p) => p.status === 'absent').length;
+      const pending = players.filter((p) => p.status === 'pending').length;
+      $('count-present').textContent = present;
+      $('count-absent').textContent = absent;
+      $('count-pending').textContent = pending;
+    }
+
+    function renderPlayers() {
+      const list = $('player-list');
+      list.innerHTML = '';
+
+      players.forEach((player) => {
+        const btn = document.createElement('button');
+        btn.className = `player-btn w-full border-2 rounded-2xl px-4 py-3 text-left flex items-center justify-between status-${player.status}`;
+        btn.innerHTML = `
+          <div>
+            <div class="font-bold text-lg">${escapeHtml(player.name)}</div>
+            <div class="text-sm opacity-70">${escapeHtml(player.grade)}</div>
+          </div>
+          <div class="text-sm font-semibold shrink-0 ml-3">${STATUS_LABEL[player.status]}</div>
+        `;
+        btn.addEventListener('click', () => {
+          player.status = nextStatus(player.status);
+          renderPlayers();
+          updateCounts();
+        });
+        list.appendChild(btn);
+      });
+
+      updateCounts();
+    }
+
+    function escapeHtml(str) {
+      return String(str ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+    }
+
+    async function init() {
+      try {
+        const params = new URLSearchParams(location.search);
+        const liffId = params.get('liffId') || '';
+
+        if (!liffId) {
+          showError('缺少 LIFF ID 設定，請從 LINE 官方帳號選單進入。');
+          return;
+        }
+
+        await liff.init({ liffId });
+
+        if (!liff.isLoggedIn()) {
+          liff.login({ redirectUri: location.href.split('?')[0] + '?liffId=' + liffId });
+          return;
+        }
+
+        idToken = liff.getIDToken();
+        if (!idToken) {
+          showError('無法取得 LINE 登入憑證，請重新進入。');
+          return;
+        }
+
+        const configData = await apiFetch('/api/config');
+        const coachName = configData.coach?.name || '教練';
+        $('coach-name').textContent = `教練：${coachName}`;
+
+        const date = todayStr();
+        $('today-date').textContent = formatDisplayDate(date);
+
+        const data = await apiFetch(`/api/players?date=${date}`);
+        players = data.players.map((p) => ({ ...p, status: p.status || 'pending' }));
+
+        if (players.length === 0) {
+          showError('目前沒有隊員資料，請至 Google 試算表「隊員名單」分頁新增。');
+          return;
+        }
+
+        $('loading').classList.add('hidden');
+        $('main').classList.remove('hidden');
+        renderPlayers();
+      } catch (err) {
+        showError(err.message);
+      }
+    }
+
+    async function submitRollcall() {
+      if (isSubmitting) return;
+      isSubmitting = true;
+      $('submit-btn').disabled = true;
+      $('submit-btn').textContent = '送出中...';
+
+      try {
+        const date = todayStr();
+        const records = players.map((p) => ({
+          playerId: p.id,
+          status: p.status,
+        }));
+
+        const result = await apiFetch('/api/rollcall', {
+          method: 'POST',
+          body: JSON.stringify({ date, records }),
+        });
+
+        const s = result.summary;
+        $('success-summary').textContent =
+          `出席 ${s.present} 人 · 缺席 ${s.absent} 人 · 出席率 ${s.attendanceRate}%`;
+
+        if (result.email?.sent) {
+          $('email-status').textContent = '📧 點名日報已寄出至指定信箱';
+        } else {
+          $('email-status').textContent = '📧 郵件未發送（SMTP 可能尚未設定）';
+        }
+
+        $('success-modal').classList.remove('hidden');
+      } catch (err) {
+        alert('送出失敗：' + err.message);
+      } finally {
+        isSubmitting = false;
+        $('submit-btn').disabled = false;
+        $('submit-btn').textContent = '確認送出';
+      }
+    }
+
+    $('submit-btn').addEventListener('click', submitRollcall);
+    $('close-btn').addEventListener('click', () => {
+      if (liff.isInClient()) {
+        liff.closeWindow();
+      } else {
+        $('success-modal').classList.add('hidden');
+      }
+    });
+
+    init();
+  </script>
+</body>
+</html>

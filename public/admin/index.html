@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>隊員點名表</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .table-scroll {
+      max-height: calc(100vh - 280px);
+      overflow: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    .table-scroll thead th {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      box-shadow: 0 1px 0 #e2e8f0;
+    }
+    .table-scroll thead tr.label-row th {
+      font-size: 12px;
+      padding: 8px 4px;
+    }
+    .status-btn {
+      width: 40px;
+      height: 40px;
+      border-radius: 9999px;
+      border: 2px solid;
+      font-size: 15px;
+      font-weight: 600;
+      transition: transform 0.1s;
+    }
+    .status-btn:active { transform: scale(0.95); }
+    .menu-panel { min-width: 120px; }
+    .col-sticky-name {
+      position: sticky;
+      left: 0;
+      z-index: 11;
+      background: inherit;
+      box-shadow: 1px 0 0 #e2e8f0;
+    }
+    thead .col-sticky-name { z-index: 25; }
+  </style>
+</head>
+<body class="bg-slate-50 min-h-screen pb-28">
+  <div class="max-w-6xl mx-auto p-4 md:p-8">
+    <header class="mb-6">
+      <h1 class="text-2xl font-bold text-slate-800">中山國小桌球隊 · 點名表</h1>
+      <p class="text-slate-500 mt-1">密碼 12345 · 每位學生請選擇一項 ○ 狀態</p>
+    </header>
+
+    <div id="login-panel" class="bg-white rounded-2xl shadow p-6 max-w-md">
+      <h2 class="font-bold text-lg mb-4">管理員登入</h2>
+      <input id="token-input" type="password" class="w-full border rounded-xl px-4 py-3 mb-4" placeholder="請輸入密碼">
+      <button id="login-btn" class="w-full bg-emerald-600 text-white py-3 rounded-xl font-bold">登入</button>
+    </div>
+
+    <div id="main-panel" class="hidden space-y-4">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 class="font-bold text-lg">隊員清單</h2>
+          <p id="today-label" class="text-sm text-slate-500"></p>
+        </div>
+        <button id="add-btn" class="bg-emerald-600 text-white px-4 py-2 rounded-xl font-semibold">+ 新增隊員</button>
+      </div>
+
+      <div class="bg-white rounded-2xl shadow overflow-hidden">
+        <div class="flex flex-wrap gap-2 px-4 pt-3 pb-2 text-xs font-semibold border-b border-slate-100">
+          <span class="px-2 py-1 rounded-full bg-emerald-100 text-emerald-800">○ 實到</span>
+          <span class="px-2 py-1 rounded-full bg-amber-100 text-amber-800">○ 遲到</span>
+          <span class="px-2 py-1 rounded-full bg-blue-100 text-blue-800">○ 比賽</span>
+          <span class="px-2 py-1 rounded-full bg-violet-100 text-violet-800">○ 請假</span>
+          <span class="px-2 py-1 rounded-full bg-red-100 text-red-800">○ 無故未到</span>
+        </div>
+        <div class="table-scroll">
+          <div id="player-table"></div>
+        </div>
+      </div>
+
+      <div id="submit-area" class="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 p-4 shadow-lg">
+        <div class="max-w-6xl mx-auto flex flex-col sm:flex-row items-center gap-3">
+          <p id="submit-status" class="text-emerald-700 font-semibold hidden">✓ 已送達</p>
+          <button id="submit-rollcall-btn" class="w-full sm:w-auto sm:ml-auto bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-3 rounded-xl font-bold text-lg">
+            送出點名表
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div id="form-modal" class="hidden fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
+      <div class="bg-white rounded-2xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
+        <h3 id="form-title" class="font-bold text-lg mb-4">新增隊員</h3>
+        <form id="player-form" class="space-y-3">
+          <input type="hidden" id="edit-id">
+          <div class="grid grid-cols-2 gap-3">
+            <div class="col-span-2">
+              <label class="text-sm text-slate-600">學生姓名 *</label>
+              <input name="name" required class="w-full border rounded-xl px-3 py-2 mt-1">
+            </div>
+            <div class="col-span-2">
+              <label class="text-sm text-slate-600">班級 *</label>
+              <input name="grade" required class="w-full border rounded-xl px-3 py-2 mt-1">
+            </div>
+            <div class="col-span-2">
+              <label class="text-sm text-slate-600">家長姓名</label>
+              <input name="parent_name" class="w-full border rounded-xl px-3 py-2 mt-1">
+            </div>
+            <div class="col-span-2">
+              <label class="text-sm text-slate-600">家長手機</label>
+              <input name="parent_phone" type="tel" class="w-full border rounded-xl px-3 py-2 mt-1">
+            </div>
+            <div class="col-span-2">
+              <label class="text-sm text-slate-600">備用緊急電話</label>
+              <input name="emergency_phone" type="tel" class="w-full border rounded-xl px-3 py-2 mt-1">
+            </div>
+            <div class="col-span-2">
+              <label class="text-sm text-slate-600">備註</label>
+              <textarea name="notes" rows="2" class="w-full border rounded-xl px-3 py-2 mt-1"></textarea>
+            </div>
+          </div>
+          <div class="flex gap-3 pt-2">
+            <button type="button" id="cancel-btn" class="flex-1 border py-3 rounded-xl">取消</button>
+            <button type="submit" class="flex-1 bg-emerald-600 text-white py-3 rounded-xl font-bold">儲存</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const STATUSES = [
+      { key: 'present', label: '實到', head: 'bg-emerald-100 text-emerald-900', col: 'bg-emerald-50/80', btn: 'border-emerald-300 text-emerald-600', active: 'bg-emerald-600 border-emerald-700 text-white' },
+      { key: 'late', label: '遲到', head: 'bg-amber-100 text-amber-900', col: 'bg-amber-50/80', btn: 'border-amber-300 text-amber-600', active: 'bg-amber-500 border-amber-600 text-white' },
+      { key: 'competition', label: '比賽', head: 'bg-blue-100 text-blue-900', col: 'bg-blue-50/80', btn: 'border-blue-300 text-blue-600', active: 'bg-blue-600 border-blue-700 text-white' },
+      { key: 'leave', label: '請假', head: 'bg-violet-100 text-violet-900', col: 'bg-violet-50/80', btn: 'border-violet-300 text-violet-600', active: 'bg-violet-600 border-violet-700 text-white' },
+      { key: 'absent', label: '無故未到', head: 'bg-red-100 text-red-900', col: 'bg-red-50/80', btn: 'border-red-300 text-red-600', active: 'bg-red-600 border-red-700 text-white' },
+    ];
+
+    let adminToken = localStorage.getItem('adminToken') || '';
+    let roster = [];
+    const attendance = new Map();
+    const notesMap = new Map();
+    let openMenuId = null;
+
+    const $ = (id) => document.getElementById(id);
+
+    function todayStr() {
+      return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei' }).format(new Date());
+    }
+
+    async function api(path, options = {}) {
+      const res = await fetch(`/admin/api${path}`, {
+        ...options,
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Admin-Token': adminToken,
+          ...(options.headers || {}),
+        },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      return data;
+    }
+
+    function esc(s) {
+      return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    function showMain() {
+      $('login-panel').classList.add('hidden');
+      $('main-panel').classList.remove('hidden');
+      $('today-label').textContent = `今日：${todayStr()}`;
+      loadPlayers();
+    }
+
+    function closeAllMenus() {
+      openMenuId = null;
+      document.querySelectorAll('.menu-panel').forEach((el) => el.classList.add('hidden'));
+    }
+
+    function toggleMenu(id, event) {
+      event.stopPropagation();
+      const panel = document.getElementById(`menu-${id}`);
+      if (openMenuId === id) {
+        closeAllMenus();
+        return;
+      }
+      closeAllMenus();
+      openMenuId = id;
+      panel.classList.remove('hidden');
+    }
+
+    function setStatus(playerId, status) {
+      attendance.set(playerId, status);
+      renderTable();
+    }
+
+    async function saveNote(playerId, value) {
+      notesMap.set(playerId, value);
+      const player = roster.find((p) => p.id === playerId);
+      if (!player) return;
+      try {
+        await api(`/players/${playerId}`, {
+          method: 'PUT',
+          body: JSON.stringify({
+            name: player.name,
+            grade: player.grade,
+            parent_name: player.parent_name || '',
+            parent_phone: player.parent_phone || '',
+            emergency_phone: player.emergency_phone || '',
+            notes: value,
+          }),
+        });
+        player.notes = value;
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    window.saveNote = (id, el) => saveNote(id, el.value);
+
+    function renderTable() {
+      let html = `<table class="w-full text-sm min-w-[980px] border-collapse"><thead class="text-slate-700">
+        <tr class="label-row">
+          <th class="p-2 text-left bg-slate-50">操作</th>
+          <th class="p-2 text-left col-sticky-name bg-slate-50">姓名</th>
+          <th class="p-2 text-left bg-slate-50">班級</th>
+          <th class="p-2 text-left bg-slate-50">家長電話</th>
+          <th class="p-2 text-left bg-slate-50 min-w-[140px]">備註</th>`;
+      for (const s of STATUSES) {
+        html += `<th class="p-2 text-center ${s.head}">
+          <div class="text-base leading-none mb-0.5">○</div>
+          <div class="font-bold whitespace-nowrap">${s.label}</div>
+        </th>`;
+      }
+      html += `</tr></thead><tbody>`;
+
+      if (roster.length === 0) {
+        html += `<tr><td colspan="10" class="p-6 text-center text-slate-400">尚無隊員資料</td></tr>`;
+      }
+
+      for (const p of roster) {
+        const current = attendance.get(p.id) || '';
+        const noteVal = esc(notesMap.get(p.id) ?? p.notes ?? '');
+        html += `<tr class="border-t align-middle hover:bg-slate-50/50">
+          <td class="p-2 relative bg-white">
+            <button type="button" onclick="toggleMenu(${p.id}, event)" class="border border-slate-300 rounded-lg px-3 py-1.5 text-slate-700 bg-white hover:bg-slate-50">操作</button>
+            <div id="menu-${p.id}" class="menu-panel hidden absolute left-2 top-12 z-30 bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden">
+              <button type="button" onclick="editPlayer(${p.id})" class="block w-full text-left px-4 py-2 hover:bg-slate-50 text-emerald-700">編輯</button>
+              <button type="button" onclick="deletePlayer(${p.id})" class="block w-full text-left px-4 py-2 hover:bg-slate-50 text-red-600">刪除</button>
+            </div>
+          </td>
+          <td class="p-3 font-semibold col-sticky-name bg-white">${esc(p.name)}</td>
+          <td class="p-3 bg-white">${esc(p.grade)}</td>
+          <td class="p-3 whitespace-nowrap bg-white">${esc(p.parent_phone)}</td>
+          <td class="p-2 bg-white">
+            <input type="text" value="${noteVal}" placeholder="有問題可填寫"
+              class="w-full min-w-[120px] border border-slate-200 rounded-lg px-2 py-1.5 text-sm"
+              onblur="saveNote(${p.id}, this)" onclick="event.stopPropagation()">
+          </td>`;
+
+        for (const s of STATUSES) {
+          const active = current === s.key;
+          html += `<td class="p-2 text-center ${s.col}">
+            <button type="button"
+              class="status-btn ${active ? s.active : s.btn}"
+              title="${s.label}"
+              onclick="setStatus(${p.id}, '${s.key}')">${active ? '●' : '○'}</button>
+          </td>`;
+        }
+        html += `</tr>`;
+      }
+
+      html += '</tbody></table>';
+      $('player-table').innerHTML = html;
+    }
+
+    async function loadPlayers() {
+      const data = await api('/players');
+      roster = data.players;
+      for (const p of roster) {
+        if (!attendance.has(p.id)) attendance.set(p.id, '');
+        if (!notesMap.has(p.id)) notesMap.set(p.id, p.notes || '');
+      }
+      renderTable();
+    }
+
+    function openForm(player = null) {
+      closeAllMenus();
+      $('form-title').textContent = player ? '編輯隊員' : '新增隊員';
+      $('edit-id').value = player?.id || '';
+      const form = $('player-form');
+      for (const el of form.elements) {
+        if (el.name) el.value = player ? (player[el.name] || '') : '';
+      }
+      $('form-modal').classList.remove('hidden');
+    }
+
+    window.toggleMenu = toggleMenu;
+    window.setStatus = setStatus;
+
+    window.editPlayer = async (id) => {
+      closeAllMenus();
+      openForm(roster.find((p) => p.id === id));
+    };
+
+    window.deletePlayer = async (id) => {
+      closeAllMenus();
+      if (!confirm('確定刪除此隊員？')) return;
+      await api(`/players/${id}`, { method: 'DELETE' });
+      attendance.delete(id);
+      loadPlayers();
+    };
+
+    async function submitRollcall() {
+      $('submit-status').classList.add('hidden');
+      const missing = roster.filter((p) => !attendance.get(p.id));
+      if (missing.length) {
+        alert(`尚有 ${missing.length} 位隊員未選擇狀態，請每位各選一項 ○`);
+        return;
+      }
+
+      const records = roster.map((p) => ({
+        playerId: p.id,
+        status: attendance.get(p.id),
+        notes: notesMap.get(p.id) ?? p.notes ?? '',
+      }));
+
+      $('submit-rollcall-btn').disabled = true;
+      $('submit-rollcall-btn').textContent = '送出中...';
+
+      try {
+        const result = await api('/rollcall', {
+          method: 'POST',
+          body: JSON.stringify({ date: todayStr(), records }),
+        });
+
+        $('submit-status').classList.remove('hidden');
+        if (result.email?.sent) {
+          $('submit-status').textContent = '✓ 已送達（Email 已寄至 ben83127@gmail.com）';
+        } else {
+          $('submit-status').textContent = '✓ 已送達（Email 需設定 SMTP 才會寄出）';
+        }
+      } catch (err) {
+        alert(err.message);
+      } finally {
+        $('submit-rollcall-btn').disabled = false;
+        $('submit-rollcall-btn').textContent = '送出點名表';
+      }
+    }
+
+    document.addEventListener('click', closeAllMenus);
+
+    $('login-btn').addEventListener('click', async () => {
+      adminToken = $('token-input').value.trim();
+      try {
+        await api('/players');
+        localStorage.setItem('adminToken', adminToken);
+        showMain();
+      } catch {
+        alert('密碼錯誤');
+      }
+    });
+
+    $('add-btn').addEventListener('click', () => openForm());
+    $('cancel-btn').addEventListener('click', () => $('form-modal').classList.add('hidden'));
+    $('submit-rollcall-btn').addEventListener('click', submitRollcall);
+
+    $('player-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const data = Object.fromEntries(new FormData(e.target));
+      const id = $('edit-id').value;
+      if (id) await api(`/players/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+      else await api('/players', { method: 'POST', body: JSON.stringify(data) });
+      $('form-modal').classList.add('hidden');
+      loadPlayers();
+    });
+
+    if (adminToken) {
+      api('/players').then(showMain).catch(() => localStorage.removeItem('adminToken'));
+    }
+  </script>
+</body>
+</html>
