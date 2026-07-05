@@ -31,17 +31,25 @@ app.get('/liff/rollcall', (req, res) => {
 });
 
 app.get('/health', (req, res) => {
-  res.json({
+  const data = {
     status: 'ok',
-    service: 'line-rollcall-kaohsiung',
+    service: 'csh-tt-rollcall',
+    admin: `${config.baseUrl}/admin/`,
     storage: playerStore.useGoogleSheets() ? 'google-sheets' : 'local-json',
-    lineConfigured: Boolean(config.line.channelSecret && config.line.channelAccessToken),
-    liffConfigured: Boolean(config.line.liffId),
-  });
+  };
+  // 瀏覽器誤開 /health 時，導向點名表（Render 監控仍收 JSON）
+  if (req.accepts('html') && req.query.raw !== '1') {
+    return res.redirect('/admin/');
+  }
+  res.json(data);
+});
+
+app.get('/admin', (req, res) => {
+  res.redirect('/admin/');
 });
 
 app.get('/', (req, res) => {
-  res.redirect('/admin/');
+  res.sendFile(path.join(__dirname, 'public', 'admin', 'index.html'));
 });
 
 async function start() {
