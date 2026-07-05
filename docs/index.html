@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>隊員點名表</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
   <style>
     .table-scroll {
       max-height: calc(100vh - 280px);
@@ -129,15 +128,10 @@
   </div>
 
   <script>
+    // ===== 靜態版設定（已寫好，免再改）=====
     const CONFIG = {
       PASSWORD: '12345',
       EMAIL_TO: 'ben83127@gmail.com',
-      // EmailJS 設定（見 docs/EmailJS設定教學.md）
-      EMAILJS: {
-        PUBLIC_KEY: '在這裡貼 Public Key',
-        SERVICE_ID: '在這裡貼 Service ID',
-        TEMPLATE_ID: '在這裡貼 Template ID',
-      },
     };
 
     const ROSTER_KEY = 'rollcall_roster_v1';
@@ -240,8 +234,8 @@
     }
 
     window.saveNote = (id, el) => saveNote(id, el.value);
-    window.setStatus = setStatus;
     window.toggleMenu = toggleMenu;
+    window.setStatus = setStatus;
 
     window.editPlayer = (id) => {
       closeAllMenus();
@@ -390,22 +384,8 @@
 </div>`.trim();
     }
 
-    function emailJsReady() {
-      const e = CONFIG.EMAILJS;
-      return e.PUBLIC_KEY && e.SERVICE_ID && e.TEMPLATE_ID &&
-        !e.PUBLIC_KEY.includes('在這裡貼') &&
-        !e.SERVICE_ID.includes('在這裡貼') &&
-        !e.TEMPLATE_ID.includes('在這裡貼');
-    }
-
     async function submitRollcall() {
       $('submit-status').classList.add('hidden');
-
-      if (!emailJsReady()) {
-        alert('請先設定 EmailJS（見 docs/EmailJS設定教學.md）');
-        return;
-      }
-
       const missing = roster.filter((p) => !attendance.get(p.id));
       if (missing.length) {
         alert(`尚有 ${missing.length} 位隊員未選擇狀態，請每位各選一項 ○`);
@@ -431,17 +411,25 @@
       $('submit-rollcall-btn').textContent = '送出中...';
 
       try {
-        emailjs.init({ publicKey: CONFIG.EMAILJS.PUBLIC_KEY });
-        await emailjs.send(CONFIG.EMAILJS.SERVICE_ID, CONFIG.EMAILJS.TEMPLATE_ID, {
-          to_email: CONFIG.EMAIL_TO,
-          subject,
-          message_html: messageHtml,
+        const res = await fetch(`https://formsubmit.co/ajax/${CONFIG.EMAIL_TO}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+          body: JSON.stringify({
+            _subject: subject,
+            _template: 'box',
+            _captcha: 'false',
+            message: messageHtml,
+          }),
         });
+        const result = await res.json();
+        if (result.success !== 'true') {
+          throw new Error(result.message || 'Email 送出失敗');
+        }
 
         $('submit-status').classList.remove('hidden');
-        $('submit-status').textContent = '✓ 已送達（Email 已寄至 ' + CONFIG.EMAIL_TO + '）';
+        $('submit-status').textContent = '✓ 已送達（Email 已寄至 ben83127@gmail.com）';
       } catch (err) {
-        alert('Email 送出失敗：' + (err.text || err.message || '請檢查 EmailJS 設定'));
+        alert(err.message || 'Email 送出失敗，若為第一次使用請到信箱點 FormSubmit 啟用連結');
       } finally {
         $('submit-rollcall-btn').disabled = false;
         $('submit-rollcall-btn').textContent = '送出點名表';

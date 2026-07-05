@@ -1,143 +1,7 @@
-<!DOCTYPE html>
-<html lang="zh-Hant">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>隊員點名表</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
-  <style>
-    .table-scroll {
-      max-height: calc(100vh - 280px);
-      overflow: auto;
-      -webkit-overflow-scrolling: touch;
-    }
-    .table-scroll thead th {
-      position: sticky;
-      top: 0;
-      z-index: 20;
-      box-shadow: 0 1px 0 #e2e8f0;
-    }
-    .table-scroll thead tr.label-row th {
-      font-size: 12px;
-      padding: 8px 4px;
-    }
-    .status-btn {
-      width: 40px;
-      height: 40px;
-      border-radius: 9999px;
-      border: 2px solid;
-      font-size: 15px;
-      font-weight: 600;
-      transition: transform 0.1s;
-    }
-    .status-btn:active { transform: scale(0.95); }
-    .menu-panel { min-width: 120px; }
-    .col-sticky-name {
-      position: sticky;
-      left: 0;
-      z-index: 11;
-      background: inherit;
-      box-shadow: 1px 0 0 #e2e8f0;
-    }
-    thead .col-sticky-name { z-index: 25; }
-  </style>
-</head>
-<body class="bg-slate-50 min-h-screen pb-28">
-  <div class="max-w-6xl mx-auto p-4 md:p-8">
-    <header class="mb-6">
-      <h1 class="text-2xl font-bold text-slate-800">中山國小桌球隊 · 點名表</h1>
-      <p class="text-slate-500 mt-1">密碼 12345 · 每位學生請選擇一項 ○ 狀態</p>
-    </header>
-
-    <div id="login-panel" class="bg-white rounded-2xl shadow p-6 max-w-md">
-      <h2 class="font-bold text-lg mb-4">管理員登入</h2>
-      <input id="token-input" type="password" class="w-full border rounded-xl px-4 py-3 mb-4" placeholder="請輸入密碼">
-      <button id="login-btn" class="w-full bg-emerald-600 text-white py-3 rounded-xl font-bold">登入</button>
-    </div>
-
-    <div id="main-panel" class="hidden space-y-4">
-      <div class="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 class="font-bold text-lg">隊員清單</h2>
-          <p id="today-label" class="text-sm text-slate-500"></p>
-        </div>
-        <button id="add-btn" class="bg-emerald-600 text-white px-4 py-2 rounded-xl font-semibold">+ 新增隊員</button>
-      </div>
-
-      <div class="bg-white rounded-2xl shadow overflow-hidden">
-        <div class="flex flex-wrap gap-2 px-4 pt-3 pb-2 text-xs font-semibold border-b border-slate-100">
-          <span class="px-2 py-1 rounded-full bg-emerald-100 text-emerald-800">○ 實到</span>
-          <span class="px-2 py-1 rounded-full bg-amber-100 text-amber-800">○ 遲到</span>
-          <span class="px-2 py-1 rounded-full bg-blue-100 text-blue-800">○ 比賽</span>
-          <span class="px-2 py-1 rounded-full bg-violet-100 text-violet-800">○ 請假</span>
-          <span class="px-2 py-1 rounded-full bg-red-100 text-red-800">○ 無故未到</span>
-        </div>
-        <div class="table-scroll">
-          <div id="player-table"></div>
-        </div>
-      </div>
-
-      <div id="submit-area" class="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 p-4 shadow-lg">
-        <div class="max-w-6xl mx-auto flex flex-col sm:flex-row items-center gap-3">
-          <p id="submit-status" class="text-emerald-700 font-semibold hidden">✓ 已送達</p>
-          <button id="submit-rollcall-btn" class="w-full sm:w-auto sm:ml-auto bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-3 rounded-xl font-bold text-lg">
-            送出點名表
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <div id="form-modal" class="hidden fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
-      <div class="bg-white rounded-2xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
-        <h3 id="form-title" class="font-bold text-lg mb-4">新增隊員</h3>
-        <form id="player-form" class="space-y-3">
-          <input type="hidden" id="edit-id">
-          <div class="grid grid-cols-2 gap-3">
-            <div class="col-span-2">
-              <label class="text-sm text-slate-600">學生姓名 *</label>
-              <input name="name" required class="w-full border rounded-xl px-3 py-2 mt-1">
-            </div>
-            <div class="col-span-2">
-              <label class="text-sm text-slate-600">班級 *</label>
-              <input name="grade" required class="w-full border rounded-xl px-3 py-2 mt-1">
-            </div>
-            <div class="col-span-2">
-              <label class="text-sm text-slate-600">家長姓名</label>
-              <input name="parent_name" class="w-full border rounded-xl px-3 py-2 mt-1">
-            </div>
-            <div class="col-span-2">
-              <label class="text-sm text-slate-600">家長手機</label>
-              <input name="parent_phone" type="tel" class="w-full border rounded-xl px-3 py-2 mt-1">
-            </div>
-            <div class="col-span-2">
-              <label class="text-sm text-slate-600">備用緊急電話</label>
-              <input name="emergency_phone" type="tel" class="w-full border rounded-xl px-3 py-2 mt-1">
-            </div>
-            <div class="col-span-2">
-              <label class="text-sm text-slate-600">備註</label>
-              <textarea name="notes" rows="2" class="w-full border rounded-xl px-3 py-2 mt-1"></textarea>
-            </div>
-          </div>
-          <div class="flex gap-3 pt-2">
-            <button type="button" id="cancel-btn" class="flex-1 border py-3 rounded-xl">取消</button>
-            <button type="submit" class="flex-1 bg-emerald-600 text-white py-3 rounded-xl font-bold">儲存</button>
-          </div>
-        </form>
-      </div>
-    </div>
-  </div>
-
-  <script>
+    // ===== 靜態版設定（已寫好，免再改）=====
     const CONFIG = {
       PASSWORD: '12345',
       EMAIL_TO: 'ben83127@gmail.com',
-      // EmailJS 設定（見 docs/EmailJS設定教學.md）
-      EMAILJS: {
-        PUBLIC_KEY: '在這裡貼 Public Key',
-        SERVICE_ID: '在這裡貼 Service ID',
-        TEMPLATE_ID: '在這裡貼 Template ID',
-      },
     };
 
     const ROSTER_KEY = 'rollcall_roster_v1';
@@ -240,8 +104,8 @@
     }
 
     window.saveNote = (id, el) => saveNote(id, el.value);
-    window.setStatus = setStatus;
     window.toggleMenu = toggleMenu;
+    window.setStatus = setStatus;
 
     window.editPlayer = (id) => {
       closeAllMenus();
@@ -390,22 +254,8 @@
 </div>`.trim();
     }
 
-    function emailJsReady() {
-      const e = CONFIG.EMAILJS;
-      return e.PUBLIC_KEY && e.SERVICE_ID && e.TEMPLATE_ID &&
-        !e.PUBLIC_KEY.includes('在這裡貼') &&
-        !e.SERVICE_ID.includes('在這裡貼') &&
-        !e.TEMPLATE_ID.includes('在這裡貼');
-    }
-
     async function submitRollcall() {
       $('submit-status').classList.add('hidden');
-
-      if (!emailJsReady()) {
-        alert('請先設定 EmailJS（見 docs/EmailJS設定教學.md）');
-        return;
-      }
-
       const missing = roster.filter((p) => !attendance.get(p.id));
       if (missing.length) {
         alert(`尚有 ${missing.length} 位隊員未選擇狀態，請每位各選一項 ○`);
@@ -431,17 +281,25 @@
       $('submit-rollcall-btn').textContent = '送出中...';
 
       try {
-        emailjs.init({ publicKey: CONFIG.EMAILJS.PUBLIC_KEY });
-        await emailjs.send(CONFIG.EMAILJS.SERVICE_ID, CONFIG.EMAILJS.TEMPLATE_ID, {
-          to_email: CONFIG.EMAIL_TO,
-          subject,
-          message_html: messageHtml,
+        const res = await fetch(`https://formsubmit.co/ajax/${CONFIG.EMAIL_TO}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+          body: JSON.stringify({
+            _subject: subject,
+            _template: 'box',
+            _captcha: 'false',
+            message: messageHtml,
+          }),
         });
+        const result = await res.json();
+        if (result.success !== 'true') {
+          throw new Error(result.message || 'Email 送出失敗');
+        }
 
         $('submit-status').classList.remove('hidden');
-        $('submit-status').textContent = '✓ 已送達（Email 已寄至 ' + CONFIG.EMAIL_TO + '）';
+        $('submit-status').textContent = '✓ 已送達（Email 已寄至 ben83127@gmail.com）';
       } catch (err) {
-        alert('Email 送出失敗：' + (err.text || err.message || '請檢查 EmailJS 設定'));
+        alert(err.message || 'Email 送出失敗，若為第一次使用請到信箱點 FormSubmit 啟用連結');
       } finally {
         $('submit-rollcall-btn').disabled = false;
         $('submit-rollcall-btn').textContent = '送出點名表';
@@ -495,6 +353,3 @@
     });
 
     if (adminToken === CONFIG.PASSWORD) showMain();
-  </script>
-</body>
-</html>
