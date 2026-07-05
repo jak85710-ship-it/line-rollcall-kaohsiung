@@ -2,110 +2,117 @@
 <html lang="zh-Hant">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>中山國小桌球隊 · 點名</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>隊員點名表</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
-    .player-btn {
-      min-height: 56px;
-      touch-action: manipulation;
-      -webkit-tap-highlight-color: transparent;
-      transition: transform 0.08s ease, background 0.15s, border-color 0.15s;
+    .table-scroll {
+      max-height: calc(100vh - 280px);
+      overflow: auto;
+      -webkit-overflow-scrolling: touch;
     }
-    .player-btn:active { transform: scale(0.98); }
-    .st-pending { background: #f1f5f9; border-color: #cbd5e1; color: #475569; }
-    .st-present { background: #dcfce7; border-color: #22c55e; color: #166534; }
-    .st-absent  { background: #fee2e2; border-color: #ef4444; color: #991b1b; }
+    .table-scroll thead th {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      box-shadow: 0 1px 0 #e2e8f0;
+    }
+    .table-scroll thead tr.label-row th {
+      font-size: 12px;
+      padding: 8px 4px;
+    }
+    .status-btn {
+      width: 40px;
+      height: 40px;
+      border-radius: 9999px;
+      border: 2px solid;
+      font-size: 15px;
+      font-weight: 600;
+      transition: transform 0.1s;
+    }
+    .status-btn:active { transform: scale(0.95); }
+    .col-sticky-name {
+      position: sticky;
+      left: 0;
+      z-index: 11;
+      background: inherit;
+      box-shadow: 1px 0 0 #e2e8f0;
+    }
+    thead .col-sticky-name { z-index: 25; }
   </style>
 </head>
-<body class="bg-slate-100 min-h-screen">
-
-  <!-- 密碼鎖 -->
-  <div id="lock-screen" class="fixed inset-0 bg-slate-900/60 flex items-center justify-center p-4 z-50">
-    <div class="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
-      <h2 class="text-xl font-bold text-slate-800 mb-1">中山國小桌球隊</h2>
-      <p class="text-sm text-slate-500 mb-4">請輸入密碼以開啟點名表</p>
-      <input id="pwd-input" type="password" inputmode="numeric"
-        class="w-full border-2 border-slate-200 rounded-xl px-4 py-3 text-lg text-center tracking-widest mb-3"
-        placeholder="密碼" autocomplete="off">
-      <p id="pwd-error" class="text-red-600 text-sm mb-2 hidden">密碼錯誤</p>
-      <button id="pwd-btn" class="w-full bg-emerald-600 text-white py-3 rounded-xl font-bold text-lg">進入</button>
-    </div>
-  </div>
-
-  <!-- 主畫面 -->
-  <div id="app" class="hidden max-w-lg mx-auto pb-32">
-    <header class="bg-emerald-600 text-white px-5 pt-6 pb-5 rounded-b-3xl shadow-lg sticky top-0 z-10">
-      <p class="text-emerald-100 text-sm">中山國小桌球隊 · 點名表</p>
-      <h1 id="today-label" class="text-2xl font-bold mt-1"></h1>
-      <div class="flex gap-2 mt-3 text-center text-sm">
-        <div class="flex-1 bg-white/15 rounded-xl py-2">
-          <div id="cnt-present" class="text-xl font-bold">0</div>
-          <div class="text-emerald-100 text-xs">出席</div>
-        </div>
-        <div class="flex-1 bg-white/15 rounded-xl py-2">
-          <div id="cnt-absent" class="text-xl font-bold">0</div>
-          <div class="text-emerald-100 text-xs">缺席</div>
-        </div>
-        <div class="flex-1 bg-white/15 rounded-xl py-2">
-          <div id="cnt-pending" class="text-xl font-bold">0</div>
-          <div class="text-emerald-100 text-xs">未到</div>
-        </div>
-      </div>
+<body class="bg-slate-50 min-h-screen pb-28">
+  <div class="max-w-6xl mx-auto p-4 md:p-8">
+    <header class="mb-6">
+      <h1 class="text-2xl font-bold text-slate-800">中山國小桌球隊 · 點名表</h1>
+      <p class="text-slate-500 mt-1">密碼 12345 · 每位學生請選擇一項 ○ 狀態</p>
     </header>
 
-    <div class="px-4 pt-4">
-      <p class="text-sm text-slate-500 mb-3">
-        點名字切換：<span class="text-slate-600">灰=未到</span> →
-        <span class="text-green-700">綠=出席</span> →
-        <span class="text-red-700">紅=缺席</span>
-      </p>
-      <div id="player-list" class="space-y-2"></div>
+    <div id="login-panel" class="bg-white rounded-2xl shadow p-6 max-w-md">
+      <h2 class="font-bold text-lg mb-4">管理員登入</h2>
+      <input id="token-input" type="password" class="w-full border rounded-xl px-4 py-3 mb-4" placeholder="請輸入密碼">
+      <button id="login-btn" class="w-full bg-emerald-600 text-white py-3 rounded-xl font-bold">登入</button>
     </div>
 
-    <footer class="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 p-4 shadow-[0_-4px_20px_rgba(0,0,0,0.08)]">
-      <div class="max-w-lg mx-auto">
-        <button id="submit-btn"
-          class="w-full bg-emerald-600 hover:bg-emerald-700 text-white text-lg font-bold py-4 rounded-2xl shadow-lg disabled:opacity-50">
-          確認送出
-        </button>
+    <div id="main-panel" class="hidden space-y-4">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 class="font-bold text-lg">隊員清單</h2>
+          <p id="today-label" class="text-sm text-slate-500"></p>
+        </div>
       </div>
-    </footer>
-  </div>
 
-  <!-- 成功 -->
-  <div id="success-modal" class="hidden fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
-    <div class="bg-white rounded-2xl p-6 max-w-sm w-full text-center">
-      <div class="text-5xl mb-3">✅</div>
-      <h3 class="text-xl font-bold text-slate-800 mb-2">已送達</h3>
-      <p id="success-msg" class="text-slate-600 text-sm mb-4"></p>
-      <button id="close-success" class="w-full bg-emerald-600 text-white py-3 rounded-xl font-bold">完成</button>
+      <div class="bg-white rounded-2xl shadow overflow-hidden">
+        <div class="flex flex-wrap gap-2 px-4 pt-3 pb-2 text-xs font-semibold border-b border-slate-100">
+          <span class="px-2 py-1 rounded-full bg-emerald-100 text-emerald-800">○ 實到</span>
+          <span class="px-2 py-1 rounded-full bg-amber-100 text-amber-800">○ 遲到</span>
+          <span class="px-2 py-1 rounded-full bg-blue-100 text-blue-800">○ 比賽</span>
+          <span class="px-2 py-1 rounded-full bg-violet-100 text-violet-800">○ 請假</span>
+          <span class="px-2 py-1 rounded-full bg-red-100 text-red-800">○ 無故未到</span>
+        </div>
+        <div class="table-scroll">
+          <div id="player-table"></div>
+        </div>
+      </div>
+
+      <div id="submit-area" class="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 p-4 shadow-lg">
+        <div class="max-w-6xl mx-auto flex flex-col sm:flex-row items-center gap-3">
+          <p id="submit-status" class="text-emerald-700 font-semibold hidden">✓ 已送達</p>
+          <button id="submit-rollcall-btn" class="w-full sm:w-auto sm:ml-auto bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-3 rounded-xl font-bold text-lg">
+            送出點名表
+          </button>
+        </div>
+      </div>
     </div>
   </div>
 
   <script>
-    // ========== 設定（GAS 部署後改 GAS_URL）==========
     const CONFIG = {
-      PASSWORD: '2026',
+      PASSWORD: '12345',
       API_SECRET: 'zhongshan2026',
       GAS_URL: '在這裡貼 Google Apps Script 部署網址',
+      EMAIL_TO: 'ben83127@gmail.com',
     };
 
-    // 隊員名單（內建，不需伺服器）
     const ROSTER = [{"id":1,"name":"林詠晴","grade":"603","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":2,"name":"陳宥丞","grade":"606","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":3,"name":"顏靈潔","grade":"606","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":4,"name":"張友駿","grade":"608","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":5,"name":"陳建宇","grade":"608","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":6,"name":"陳彥勳","grade":"608","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":7,"name":"張驛宏","grade":"609","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":8,"name":"吳豐麟","grade":"609","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":9,"name":"蔡承蓁","grade":"","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":11,"name":"范修齊","grade":"","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":12,"name":"黃緯宸","grade":"","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":13,"name":"張語馨","grade":"","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":14,"name":"牛子銘","grade":"","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":15,"name":"黃子謙","grade":"","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":16,"name":"林頎叡","grade":"","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":17,"name":"李晨希","grade":"","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":18,"name":"施盈如","grade":"401","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":19,"name":"張育菁","grade":"402","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":20,"name":"吳米樂","grade":"403","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":21,"name":"洪子皓","grade":"405","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":22,"name":"黃子恩","grade":"405","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":23,"name":"施寀柏","grade":"405","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":24,"name":"許宸晞","grade":"406","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":25,"name":"楊采渟","grade":"406","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":26,"name":"黃宇宸","grade":"408","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":27,"name":"蘇玥橙","grade":"409","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":28,"name":"邱韵","grade":"410","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":29,"name":"林煥芝","grade":"","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":30,"name":"牛奕鈞","grade":"","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":31,"name":"胡宇帆","grade":"","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":32,"name":"楊季澄","grade":"","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":33,"name":"張語恩","grade":"","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":34,"name":"林鉉皓","grade":"","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":35,"name":"林稟竣","grade":"","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":36,"name":"洪光宇","grade":"","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":37,"name":"賴品妤","grade":"","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":38,"name":"林彥凱","grade":"","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":39,"name":"林子妍","grade":"","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":40,"name":"吳苡瑄","grade":"","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":41,"name":"陳彌亞","grade":"","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":42,"name":"張允柔","grade":"","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":43,"name":"張凱崴","grade":"","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":44,"name":"唐得泱","grade":"201","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":45,"name":"陳迺元","grade":"202","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":46,"name":"蔡承叡","grade":"203","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":47,"name":"李若寧","grade":"203","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":48,"name":"吳克宇","grade":"203","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":49,"name":"鐘硯誠","grade":"203","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":50,"name":"蘇新硯","grade":"204","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":51,"name":"魏培恩","grade":"204","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":52,"name":"李圓今","grade":"207","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":53,"name":"黃大誠","grade":"208","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":54,"name":"黃睿承","grade":"208","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":55,"name":"葉侑璇","grade":"208","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":56,"name":"魏畇溱","grade":"209","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":57,"name":"吳承鴻","grade":"210","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":58,"name":"林子元","grade":"","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":59,"name":"陳品淇","grade":"","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":60,"name":"陳品浤","grade":"","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":61,"name":"周平","grade":"","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":62,"name":"李方序","grade":"白兔班","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":63,"name":"蘇致謙","grade":"","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":64,"name":"邱聖傑","grade":"500","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true}];
 
+    const STATUSES = [
+      { key: 'present', label: '實到', head: 'bg-emerald-100 text-emerald-900', col: 'bg-emerald-50/80', btn: 'border-emerald-300 text-emerald-600', active: 'bg-emerald-600 border-emerald-700 text-white' },
+      { key: 'late', label: '遲到', head: 'bg-amber-100 text-amber-900', col: 'bg-amber-50/80', btn: 'border-amber-300 text-amber-600', active: 'bg-amber-500 border-amber-600 text-white' },
+      { key: 'competition', label: '比賽', head: 'bg-blue-100 text-blue-900', col: 'bg-blue-50/80', btn: 'border-blue-300 text-blue-600', active: 'bg-blue-600 border-blue-700 text-white' },
+      { key: 'leave', label: '請假', head: 'bg-violet-100 text-violet-900', col: 'bg-violet-50/80', btn: 'border-violet-300 text-violet-600', active: 'bg-violet-600 border-violet-700 text-white' },
+      { key: 'absent', label: '無故未到', head: 'bg-red-100 text-red-900', col: 'bg-red-50/80', btn: 'border-red-300 text-red-600', active: 'bg-red-600 border-red-700 text-white' },
+    ];
+
+    let adminToken = localStorage.getItem('adminToken') || '';
+    let roster = [];
+    const attendance = new Map();
+    const notesMap = new Map();
+
     const $ = (id) => document.getElementById(id);
-    let players = [];
-    let submitting = false;
 
     function todayStr() {
       return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei' }).format(new Date());
-    }
-
-    function displayDate() {
-      return new Intl.DateTimeFormat('zh-TW', {
-        timeZone: 'Asia/Taipei', year: 'numeric', month: 'long', day: 'numeric', weekday: 'long',
-      }).format(new Date());
     }
 
     function nowStr() {
@@ -119,120 +126,148 @@
       return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
     }
 
-    function statusLabel(st) {
-      if (st === 'present') return '出席';
-      if (st === 'absent') return '缺席';
-      return '未到';
+    function showMain() {
+      $('login-panel').classList.add('hidden');
+      $('main-panel').classList.remove('hidden');
+      $('today-label').textContent = `今日：${todayStr()}`;
+      loadPlayers();
     }
 
-    function cycleStatus(st) {
-      if (st === 'pending') return 'present';
-      if (st === 'present') return 'absent';
-      return 'pending';
-    }
-
-    function updateCounts() {
-      let p = 0, a = 0, d = 0;
-      for (const x of players) {
-        if (x.status === 'present') p++;
-        else if (x.status === 'absent') a++;
-        else d++;
+    function tryLogin() {
+      adminToken = $('token-input').value.trim();
+      if (adminToken !== CONFIG.PASSWORD) {
+        alert('密碼錯誤');
+        return;
       }
-      $('cnt-present').textContent = p;
-      $('cnt-absent').textContent = a;
-      $('cnt-pending').textContent = d;
+      localStorage.setItem('adminToken', adminToken);
+      showMain();
     }
 
-    function renderList() {
-      const list = $('player-list');
-      list.innerHTML = '';
-      for (const p of players) {
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = `player-btn w-full border-2 rounded-xl px-4 py-3 flex items-center justify-between st-${p.status}`;
-        btn.innerHTML = `
-          <span class="font-semibold text-left">${esc(p.name)}${p.grade ? `<span class="text-sm font-normal opacity-70 ml-1">${esc(p.grade)}</span>` : ''}</span>
-          <span class="text-sm font-bold shrink-0 ml-2">${statusLabel(p.status)}</span>`;
-        btn.onclick = () => {
-          p.status = cycleStatus(p.status);
-          renderList();
-        };
-        list.appendChild(btn);
+    function setStatus(playerId, status) {
+      attendance.set(playerId, status);
+      renderTable();
+    }
+
+    function saveNote(playerId, value) {
+      notesMap.set(playerId, value);
+    }
+
+    window.saveNote = (id, el) => saveNote(id, el.value);
+    window.setStatus = setStatus;
+
+    function renderTable() {
+      let html = `<table class="w-full text-sm min-w-[900px] border-collapse"><thead class="text-slate-700">
+        <tr class="label-row">
+          <th class="p-2 text-left col-sticky-name bg-slate-50">姓名</th>
+          <th class="p-2 text-left bg-slate-50">班級</th>
+          <th class="p-2 text-left bg-slate-50">家長電話</th>
+          <th class="p-2 text-left bg-slate-50 min-w-[140px]">備註</th>`;
+      for (const s of STATUSES) {
+        html += `<th class="p-2 text-center ${s.head}">
+          <div class="text-base leading-none mb-0.5">○</div>
+          <div class="font-bold whitespace-nowrap">${s.label}</div>
+        </th>`;
       }
-      updateCounts();
-    }
+      html += `</tr></thead><tbody>`;
 
-    function unlock() {
-      $('lock-screen').classList.add('hidden');
-      $('app').classList.remove('hidden');
-      $('today-label').textContent = displayDate();
-      players = ROSTER.map((p) => ({ ...p, status: 'pending' }));
-      renderList();
-    }
-
-    function tryUnlock() {
-      if ($('pwd-input').value.trim() === CONFIG.PASSWORD) {
-        sessionStorage.setItem('rollcall_ok', '1');
-        unlock();
-      } else {
-        $('pwd-error').classList.remove('hidden');
+      if (roster.length === 0) {
+        html += `<tr><td colspan="9" class="p-6 text-center text-slate-400">尚無隊員資料</td></tr>`;
       }
+
+      for (const p of roster) {
+        const current = attendance.get(p.id) || '';
+        const noteVal = esc(notesMap.get(p.id) ?? p.notes ?? '');
+        html += `<tr class="border-t align-middle hover:bg-slate-50/50">
+          <td class="p-3 font-semibold col-sticky-name bg-white">${esc(p.name)}</td>
+          <td class="p-3 bg-white">${esc(p.grade)}</td>
+          <td class="p-3 whitespace-nowrap bg-white">${esc(p.parent_phone)}</td>
+          <td class="p-2 bg-white">
+            <input type="text" value="${noteVal}" placeholder="有問題可填寫"
+              class="w-full min-w-[120px] border border-slate-200 rounded-lg px-2 py-1.5 text-sm"
+              onblur="saveNote(${p.id}, this)" onclick="event.stopPropagation()">
+          </td>`;
+
+        for (const s of STATUSES) {
+          const active = current === s.key;
+          html += `<td class="p-2 text-center ${s.col}">
+            <button type="button"
+              class="status-btn ${active ? s.active : s.btn}"
+              title="${s.label}"
+              onclick="setStatus(${p.id}, '${s.key}')">${active ? '●' : '○'}</button>
+          </td>`;
+        }
+        html += `</tr>`;
+      }
+
+      html += '</tbody></table>';
+      $('player-table').innerHTML = html;
+    }
+
+    function loadPlayers() {
+      roster = ROSTER.filter((p) => p.is_active && p.name);
+      for (const p of roster) {
+        if (!attendance.has(p.id)) attendance.set(p.id, '');
+        if (!notesMap.has(p.id)) notesMap.set(p.id, p.notes || '');
+      }
+      renderTable();
     }
 
     async function submitRollcall() {
-      if (submitting) return;
+      $('submit-status').classList.add('hidden');
+
       if (!CONFIG.GAS_URL || CONFIG.GAS_URL.includes('在這裡貼')) {
-        alert('請先設定 Google Apps Script 部署網址（見設定教學.md）');
+        alert('請先設定 Google Apps Script 部署網址（見 docs/設定教學.md）');
         return;
       }
 
-      submitting = true;
-      $('submit-btn').disabled = true;
-      $('submit-btn').textContent = '送出中...';
+      const missing = roster.filter((p) => !attendance.get(p.id));
+      if (missing.length) {
+        alert(`尚有 ${missing.length} 位隊員未選擇狀態，請每位各選一項 ○`);
+        return;
+      }
 
-      const payload = {
-        secret: CONFIG.API_SECRET,
-        date: todayStr(),
-        submittedAt: nowStr(),
-        records: players.map((p) => ({
-          id: p.id,
-          name: p.name,
-          grade: p.grade || '',
-          status: p.status,
-          parent_phone: p.parent_phone || '',
-          notes: p.notes || '',
-        })),
-      };
+      const records = roster.map((p) => ({
+        playerId: p.id,
+        name: p.name,
+        grade: p.grade || '',
+        status: attendance.get(p.id),
+        parent_phone: p.parent_phone || '',
+        notes: notesMap.get(p.id) ?? p.notes ?? '',
+      }));
+
+      $('submit-rollcall-btn').disabled = true;
+      $('submit-rollcall-btn').textContent = '送出中...';
 
       try {
         const res = await fetch(CONFIG.GAS_URL, {
           method: 'POST',
           mode: 'cors',
           headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-          body: JSON.stringify(payload),
+          body: JSON.stringify({
+            secret: CONFIG.API_SECRET,
+            date: todayStr(),
+            submittedAt: nowStr(),
+            records,
+          }),
         });
         const result = await res.json();
         if (!result.ok) throw new Error(result.error || '送出失敗');
 
-        const present = players.filter((p) => p.status === 'present').length;
-        const absent = players.filter((p) => p.status === 'absent').length;
-        $('success-msg').textContent = `出席 ${present} 人 · 缺席 ${absent} 人\n已寫入 Google 試算表並寄出 Email`;
-        $('success-modal').classList.remove('hidden');
+        $('submit-status').classList.remove('hidden');
+        $('submit-status').textContent = '✓ 已送達（Email 已寄至 ' + CONFIG.EMAIL_TO + '）';
       } catch (err) {
-        alert('送出失敗：' + err.message + '\n\n請確認 GAS 已部署且網址正確。');
+        alert(err.message);
       } finally {
-        submitting = false;
-        $('submit-btn').disabled = false;
-        $('submit-btn').textContent = '確認送出';
+        $('submit-rollcall-btn').disabled = false;
+        $('submit-rollcall-btn').textContent = '送出點名表';
       }
     }
 
-    $('pwd-btn').onclick = tryUnlock;
-    $('pwd-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') tryUnlock(); });
-    $('submit-btn').onclick = submitRollcall;
-    $('close-success').onclick = () => $('success-modal').classList.add('hidden');
+    $('login-btn').addEventListener('click', tryLogin);
+    $('token-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') tryLogin(); });
+    $('submit-rollcall-btn').addEventListener('click', submitRollcall);
 
-    if (sessionStorage.getItem('rollcall_ok') === '1') unlock();
+    if (adminToken === CONFIG.PASSWORD) showMain();
   </script>
 </body>
 </html>

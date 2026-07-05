@@ -1,14 +1,6 @@
 /**
  * 中山國小桌球隊 · 點名表 Google Apps Script
- *
- * 設定步驟：
- * 1. 建立 Google 試算表，複製網址中的 Spreadsheet ID
- * 2. 試算表 → 擴充功能 → Apps Script → 貼上此檔全部內容
- * 3. 修改下方 CONFIG
- * 4. 部署 → 新增部署 → 網頁應用程式
- *    - 執行身分：我
- *    - 存取權：任何人
- * 5. 複製部署網址，貼到 index.html 的 GAS_URL
+ * 對應後台五種 ○ 狀態：實到 / 遲到 / 比賽 / 請假 / 無故未到
  */
 
 const CONFIG = {
@@ -17,6 +9,14 @@ const CONFIG = {
   EMAIL_TO: 'ben83127@gmail.com',
   API_SECRET: 'zhongshan2026',
   TEAM_NAME: '中山國小桌球隊',
+};
+
+const STATUS_LABELS = {
+  present: '○實到',
+  late: '○遲到',
+  competition: '○比賽',
+  leave: '○請假',
+  absent: '○無故未到',
 };
 
 function doPost(e) {
@@ -60,6 +60,10 @@ function getSheet() {
   return sheet;
 }
 
+function statusLabel(status) {
+  return STATUS_LABELS[status] || status;
+}
+
 function writeToSheet(data) {
   const sheet = getSheet();
   const rows = data.records.map(function (r) {
@@ -78,55 +82,59 @@ function writeToSheet(data) {
   }
 }
 
-function statusLabel(status) {
-  if (status === 'present') return '出席';
-  if (status === 'absent') return '缺席';
-  return '未到';
+function buildSummary(records) {
+  const summary = { present: 0, late: 0, competition: 0, leave: 0, absent: 0 };
+  records.forEach(function (r) {
+    if (summary[r.status] !== undefined) summary[r.status]++;
+  });
+  return summary;
 }
 
 function sendRollcallEmail(data) {
-  const present = data.records.filter(function (r) { return r.status === 'present'; });
-  const absent = data.records.filter(function (r) { return r.status === 'absent'; });
-  const pending = data.records.filter(function (r) { return r.status === 'pending'; });
+  const summary = buildSummary(data.records);
+  const subject = '[點名表] ' + data.date + '｜實到' + summary.present + ' 請假' + summary.leave + ' 無故未到' + summary.absent;
 
-  const subject = '【' + CONFIG.TEAM_NAME + '】' + data.date + ' 點名日報';
+  const rows = data.records.map(function (r) {
+    return '<tr>' +
+      '<td style="padding:10px;border-bottom:1px solid #eee;">' + esc(r.name) + '</td>' +
+      '<td style="padding:10px;border-bottom:1px solid #eee;">' + esc(r.grade || '-') + '</td>' +
+      '<td style="padding:10px;border-bottom:1px solid #eee;text-align:center;">' + (r.status === 'present' ? '●' : '○') + '</td>' +
+      '<td style="padding:10px;border-bottom:1px solid #eee;text-align:center;">' + (r.status === 'late' ? '●' : '○') + '</td>' +
+      '<td style="padding:10px;border-bottom:1px solid #eee;text-align:center;">' + (r.status === 'competition' ? '●' : '○') + '</td>' +
+      '<td style="padding:10px;border-bottom:1px solid #eee;text-align:center;">' + (r.status === 'leave' ? '●' : '○') + '</td>' +
+      '<td style="padding:10px;border-bottom:1px solid #eee;text-align:center;">' + (r.status === 'absent' ? '●' : '○') + '</td>' +
+      '<td style="padding:10px;border-bottom:1px solid #eee;">' + esc(r.parent_phone || '') + '</td>' +
+      '<td style="padding:10px;border-bottom:1px solid #eee;">' + esc(r.notes || '') + '</td>' +
+      '</tr>';
+  }).join('');
 
-  let html = '<div style="font-family:sans-serif;max-width:640px">';
-  html += '<h2 style="color:#047857">' + CONFIG.TEAM_NAME + ' · 點名日報</h2>';
-  html += '<p><strong>日期：</strong>' + data.date + '<br>';
-  html += '<strong>送出時間：</strong>' + data.submittedAt + '</p>';
-  html += '<p>出席 <strong style="color:#059669">' + present.length + '</strong> 人 · ';
-  html += '缺席 <strong style="color:#dc2626">' + absent.length + '</strong> 人 · ';
-  html += '未到 <strong style="color:#64748b">' + pending.length + '</strong> 人</p>';
+  const absentRecords = data.records.filter(function (r) { return r.status === 'absent'; });
 
-  html += '<h3 style="color:#059669">出席（' + present.length + '）</h3><ul>';
-  present.forEach(function (r) {
-    html += '<li>' + esc(r.name) + (r.grade ? '（' + esc(r.grade) + '）' : '') + '</li>';
-  });
-  html += '</ul>';
+  let html = '<div style="font-family:sans-serif;max-width:900px">';
+  html += '<div style="background:#047857;color:#fff;padding:24px;border-radius:12px 12px 0 0">';
+  html += '<h1 style="margin:0 0 8px;font-size:22px">' + CONFIG.TEAM_NAME + '點名表</h1>';
+  html += '<p style="margin:0">日期：' + esc(data.date) + '</p>';
+  html += '<p style="margin:8px 0 0">送出時間：' + esc(data.submittedAt) + '</p></div>';
+  html += '<div style="padding:20px 24px;background:#fff;border:1px solid #e2e8f0;border-top:0">';
+  html += '<p style="color:#475569">○實到　○遲到　○比賽　○請假　○無故未到（●為該生今日狀態）</p>';
+  html += '<table style="width:100%;border-collapse:collapse;font-size:14px"><thead><tr style="background:#f8fafc">';
+  html += '<th style="padding:10px;text-align:left">姓名</th><th style="padding:10px;text-align:left">班級</th>';
+  html += '<th style="padding:10px;text-align:center">○實到</th><th style="padding:10px;text-align:center">○遲到</th>';
+  html += '<th style="padding:10px;text-align:center">○比賽</th><th style="padding:10px;text-align:center">○請假</th>';
+  html += '<th style="padding:10px;text-align:center">○無故未到</th><th style="padding:10px;text-align:left">家長電話</th>';
+  html += '<th style="padding:10px;text-align:left">備註</th></tr></thead><tbody>' + rows + '</tbody></table>';
+  html += '<p style="margin:20px 0 0">實到 ' + summary.present + ' 人 · 遲到 ' + summary.late + ' 人 · 比賽 ' + summary.competition +
+    ' 人 · 請假 ' + summary.leave + ' 人 · 無故未到 ' + summary.absent + ' 人</p>';
 
-  html += '<h3 style="color:#dc2626">缺席（' + absent.length + '）</h3>';
-  if (absent.length === 0) {
-    html += '<p>無</p>';
-  } else {
-    html += '<table border="1" cellpadding="8" cellspacing="0" style="border-collapse:collapse;width:100%">';
-    html += '<tr style="background:#fee2e2"><th>姓名</th><th>班級</th><th>家長電話</th></tr>';
-    absent.forEach(function (r) {
-      html += '<tr><td>' + esc(r.name) + '</td><td>' + esc(r.grade || '-') + '</td>';
-      html += '<td><strong>' + esc(r.parent_phone || '（未填）') + '</strong></td></tr>';
-    });
-    html += '</table>';
-  }
-
-  if (pending.length > 0) {
-    html += '<h3 style="color:#64748b">未到（' + pending.length + '）</h3><ul>';
-    pending.forEach(function (r) {
-      html += '<li>' + esc(r.name) + (r.grade ? '（' + esc(r.grade) + '）' : '') + '</li>';
+  if (absentRecords.length > 0) {
+    html += '<h3 style="color:#dc2626;margin-top:24px">無故未到 · 家長聯絡電話</h3><ul>';
+    absentRecords.forEach(function (r) {
+      html += '<li><strong>' + esc(r.name) + '</strong>：' + esc(r.parent_phone || '（未填）') + '</li>';
     });
     html += '</ul>';
   }
 
-  html += '<p style="color:#94a3b8;font-size:12px;margin-top:24px">此信由 Google Apps Script 自動寄出</p></div>';
+  html += '</div></div>';
 
   MailApp.sendEmail({
     to: CONFIG.EMAIL_TO,

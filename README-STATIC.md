@@ -15,7 +15,7 @@
 https://jak85710-ship-it.github.io/line-rollcall-kaohsiung/
 ```
 
-密碼：`2026`
+密碼：`12345`
 
 ---
 
