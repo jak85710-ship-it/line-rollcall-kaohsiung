@@ -90,16 +90,6 @@
     "is_active": true
   },
   {
-    "id": 10,
-    "name": "邱聖傑",
-    "grade": "",
-    "parent_name": "",
-    "parent_phone": "",
-    "emergency_phone": "",
-    "notes": "",
-    "is_active": true
-  },
-  {
     "id": 11,
     "name": "范修齊",
     "grade": "",
@@ -623,6 +613,16 @@
     "id": 63,
     "name": "蘇致謙",
     "grade": "",
+    "parent_name": "",
+    "parent_phone": "",
+    "emergency_phone": "",
+    "notes": "",
+    "is_active": true
+  },
+  {
+    "id": 64,
+    "name": "邱聖傑",
+    "grade": "500",
     "parent_name": "",
     "parent_phone": "",
     "emergency_phone": "",
