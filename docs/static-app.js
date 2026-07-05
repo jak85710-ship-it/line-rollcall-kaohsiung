@@ -1,8 +1,17 @@
-    // ===== 靜態版設定（已寫好，免再改）=====
+    // ===== 靜態版設定（已寫好）=====
     const CONFIG = {
       PASSWORD: '12345',
       EMAIL_TO: 'ben83127@gmail.com',
+      // 雲端寄信 API（Render 部署後自動使用，Gmail SMTP 已綁定）
+      API_BASE: 'https://line-rollcall-kaohsiung.onrender.com',
     };
+
+    function getApiBase() {
+      if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
+        return 'http://localhost:3000';
+      }
+      return CONFIG.API_BASE;
+    }
 
     const ROSTER_KEY = 'rollcall_roster_v1';
     const DEFAULT_ROSTER = __PLAYERS_JSON__;
@@ -281,25 +290,54 @@
       $('submit-rollcall-btn').textContent = '送出中...';
 
       try {
-        const res = await fetch(`https://formsubmit.co/ajax/${CONFIG.EMAIL_TO}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-          body: JSON.stringify({
-            _subject: subject,
-            _template: 'box',
-            _captcha: 'false',
-            message: messageHtml,
-          }),
-        });
-        const result = await res.json();
-        if (result.success !== 'true') {
-          throw new Error(result.message || 'Email 送出失敗');
+        let emailSent = false;
+
+        // 優先：透過後端 Gmail SMTP 寄信（與本機 npm start 相同）
+        try {
+          const apiRes = await fetch(`${getApiBase()}/admin/api/rollcall`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Admin-Token': CONFIG.PASSWORD,
+            },
+            body: JSON.stringify({
+              date,
+              fullRecords: records,
+            }),
+          });
+          const apiResult = await apiRes.json();
+          if (apiRes.ok && apiResult.email?.sent) {
+            emailSent = true;
+          } else if (apiRes.ok) {
+            throw new Error('SMTP 尚未就緒，改用備援寄信');
+          } else {
+            throw new Error(apiResult.error || 'API 寄信失敗');
+          }
+        } catch (apiErr) {
+          // 備援：FormSubmit（雲端 API 未部署時）
+          const res = await fetch(`https://formsubmit.co/ajax/${CONFIG.EMAIL_TO}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+            body: JSON.stringify({
+              _subject: subject,
+              _template: 'box',
+              _captcha: 'false',
+              message: messageHtml,
+            }),
+          });
+          const result = await res.json();
+          if (result.success !== 'true') {
+            throw new Error(apiErr.message || result.message || 'Email 送出失敗');
+          }
+          emailSent = true;
         }
 
-        $('submit-status').classList.remove('hidden');
-        $('submit-status').textContent = '✓ 已送達（Email 已寄至 ben83127@gmail.com）';
+        if (emailSent) {
+          $('submit-status').classList.remove('hidden');
+          $('submit-status').textContent = '✓ 已送達（Email 已寄至 ben83127@gmail.com）';
+        }
       } catch (err) {
-        alert(err.message || 'Email 送出失敗，若為第一次使用請到信箱點 FormSubmit 啟用連結');
+        alert(err.message || 'Email 送出失敗');
       } finally {
         $('submit-rollcall-btn').disabled = false;
         $('submit-rollcall-btn').textContent = '送出點名表';

@@ -11,6 +11,22 @@ services:
         value: 20
       - key: BASE_URL
         sync: false
+      - key: ADMIN_TOKEN
+        value: "12345"
+      - key: SMTP_HOST
+        value: smtp.gmail.com
+      - key: SMTP_PORT
+        value: 587
+      - key: SMTP_SECURE
+        value: false
+      - key: SMTP_USER
+        value: ben83127@gmail.com
+      - key: SMTP_PASS
+        sync: false
+      - key: EMAIL_FROM
+        value: "運動隊點名系統 <ben83127@gmail.com>"
+      - key: EMAIL_TO
+        value: ben83127@gmail.com
       - key: LINE_CHANNEL_ID
         sync: false
       - key: LINE_CHANNEL_ACCESS_TOKEN
@@ -27,19 +43,3 @@ services:
         sync: false
       - key: GOOGLE_PRIVATE_KEY
         sync: false
-      - key: SMTP_USER
-        sync: false
-      - key: SMTP_PASS
-        sync: false
-      - key: EMAIL_FROM
-        sync: false
-      - key: EMAIL_TO
-        sync: false
-      - key: ADMIN_TOKEN
-        sync: false
-      - key: SMTP_HOST
-        value: smtp.gmail.com
-      - key: SMTP_PORT
-        value: 587
-      - key: SMTP_SECURE
-        value: false

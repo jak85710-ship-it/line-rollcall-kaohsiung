@@ -88,40 +88,63 @@ router.delete('/players/:id', async (req, res) => {
 router.post('/rollcall', async (req, res) => {
   try {
     const sessionDate = req.body.date || todayInTaipei();
+    const fullRecords = req.body.fullRecords;
     const records = req.body.records;
-
-    if (!Array.isArray(records) || records.length === 0) {
-      return res.status(400).json({ error: '點名資料不可為空' });
-    }
-
-    const roster = await players.getActivePlayers();
-    const rosterMap = Object.fromEntries(roster.map((p) => [p.id, p]));
-
-    if (records.length !== roster.length) {
-      return res.status(400).json({ error: '請為每位隊員各選擇一項出席狀態' });
-    }
 
     const detailRecords = [];
     const summary = { present: 0, late: 0, competition: 0, leave: 0, absent: 0 };
 
-    for (const record of records) {
-      const player = rosterMap[record.playerId];
-      if (!player) {
-        return res.status(400).json({ error: `無效的隊員 ID: ${record.playerId}` });
+    if (Array.isArray(fullRecords) && fullRecords.length > 0) {
+      for (const record of fullRecords) {
+        if (!VALID_STATUSES.includes(record.status)) {
+          return res.status(400).json({ error: '無效的出席狀態' });
+        }
+        summary[record.status] += 1;
+        detailRecords.push({
+          playerId: record.playerId || record.id,
+          name: record.name,
+          grade: record.grade || '',
+          parent_phone: record.parent_phone || '',
+          notes: record.notes || '',
+          status: record.status,
+          statusLabel: rollcallLocal.STATUS_LABELS[record.status],
+        });
       }
-      if (!VALID_STATUSES.includes(record.status)) {
-        return res.status(400).json({ error: '無效的出席狀態' });
+    } else {
+      if (!Array.isArray(records) || records.length === 0) {
+        return res.status(400).json({ error: '點名資料不可為空' });
       }
-      summary[record.status] += 1;
-      detailRecords.push({
-        playerId: player.id,
-        name: player.name,
-        grade: player.grade,
-        parent_phone: player.parent_phone,
-        notes: record.notes ?? player.notes ?? '',
-        status: record.status,
-        statusLabel: rollcallLocal.STATUS_LABELS[record.status],
-      });
+
+      const roster = await players.getActivePlayers();
+      const rosterMap = Object.fromEntries(roster.map((p) => [p.id, p]));
+
+      if (records.length !== roster.length) {
+        return res.status(400).json({ error: '請為每位隊員各選擇一項出席狀態' });
+      }
+
+      for (const record of records) {
+        const player = rosterMap[record.playerId];
+        if (!player) {
+          return res.status(400).json({ error: `無效的隊員 ID: ${record.playerId}` });
+        }
+        if (!VALID_STATUSES.includes(record.status)) {
+          return res.status(400).json({ error: '無效的出席狀態' });
+        }
+        summary[record.status] += 1;
+        detailRecords.push({
+          playerId: player.id,
+          name: player.name,
+          grade: player.grade,
+          parent_phone: player.parent_phone,
+          notes: record.notes ?? player.notes ?? '',
+          status: record.status,
+          statusLabel: rollcallLocal.STATUS_LABELS[record.status],
+        });
+      }
+    }
+
+    if (detailRecords.length === 0) {
+      return res.status(400).json({ error: '點名資料不可為空' });
     }
 
     const submittedAt = new Intl.DateTimeFormat('zh-TW', {
