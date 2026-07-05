@@ -107,7 +107,12 @@ EMAIL_TO=coach@school.edu.tw     # 日報寄給誰
 
 ## 四、免費部署到 Render（推薦）
 
+> **一鍵部署連結**（需登入 Render + GitHub）  
+> https://render.com/deploy?repo=https://github.com/jak85710-ship-it/line-rollcall-kaohsiung
+
 > **建議用 Render**，因 LINE Webhook 需要長時間運行的伺服器。Vercel 是 Serverless，不適合此類 Bot。
+
+詳細環境變數清單見：[docs/RENDER-部署清單.md](docs/RENDER-部署清單.md)
 
 ### 步驟
 
