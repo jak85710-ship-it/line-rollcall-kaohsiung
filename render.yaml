@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: line-rollcall-kaohsiung
+    name: csh-tt-rollcall
     runtime: node
     plan: free
     buildCommand: npm install
@@ -10,7 +10,7 @@ services:
       - key: NODE_VERSION
         value: 20
       - key: BASE_URL
-        sync: false
+        value: https://csh-tt-rollcall.onrender.com
       - key: ADMIN_TOKEN
         value: "12345"
       - key: SMTP_HOST

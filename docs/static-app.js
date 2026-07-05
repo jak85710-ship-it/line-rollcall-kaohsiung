@@ -3,7 +3,7 @@
       PASSWORD: '12345',
       EMAIL_TO: 'ben83127@gmail.com',
       // 雲端寄信 API（Render 部署後自動使用，Gmail SMTP 已綁定）
-      API_BASE: 'https://line-rollcall-kaohsiung.onrender.com',
+      API_BASE: 'https://csh-tt-rollcall.onrender.com',
     };
 
     function getApiBase() {

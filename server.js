@@ -41,18 +41,7 @@ app.get('/health', (req, res) => {
 });
 
 app.get('/', (req, res) => {
-  res.json({
-    service: '國小運動團隊 LINE 點名系統（高雄）',
-    storage: 'Google Sheets',
-    spreadsheet: config.google.spreadsheetId
-      ? `https://docs.google.com/spreadsheets/d/${config.google.spreadsheetId}`
-      : null,
-    endpoints: {
-      liff: `${config.baseUrl}/liff/rollcall.html`,
-      admin: `${config.baseUrl}/admin/`,
-      webhook: `${config.baseUrl}/line/webhook`,
-    },
-  });
+  res.redirect('/admin/');
 });
 
 async function start() {
