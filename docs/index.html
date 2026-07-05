@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>隊員點名表</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
   <style>
     .table-scroll {
       max-height: calc(100vh - 280px);
@@ -130,9 +131,13 @@
   <script>
     const CONFIG = {
       PASSWORD: '12345',
-      API_SECRET: 'zhongshan2026',
-      GAS_URL: '在這裡貼 Google Apps Script 部署網址',
       EMAIL_TO: 'ben83127@gmail.com',
+      // EmailJS 設定（見 docs/EmailJS設定教學.md）
+      EMAILJS: {
+        PUBLIC_KEY: '在這裡貼 Public Key',
+        SERVICE_ID: '在這裡貼 Service ID',
+        TEMPLATE_ID: '在這裡貼 Template ID',
+      },
     };
 
     const ROSTER_KEY = 'rollcall_roster_v1';
@@ -329,11 +334,75 @@
       renderTable();
     }
 
+    function buildSummary(records) {
+      const summary = { present: 0, late: 0, competition: 0, leave: 0, absent: 0 };
+      for (const r of records) {
+        if (summary[r.status] !== undefined) summary[r.status]++;
+      }
+      return summary;
+    }
+
+    function buildEmailHtml(date, submittedAt, records) {
+      const summary = buildSummary(records);
+      const rows = records.map((r) => `
+        <tr>
+          <td style="padding:10px;border-bottom:1px solid #eee;">${esc(r.name)}</td>
+          <td style="padding:10px;border-bottom:1px solid #eee;">${esc(r.grade || '-')}</td>
+          <td style="padding:10px;border-bottom:1px solid #eee;text-align:center;">${r.status === 'present' ? '●' : '○'}</td>
+          <td style="padding:10px;border-bottom:1px solid #eee;text-align:center;">${r.status === 'late' ? '●' : '○'}</td>
+          <td style="padding:10px;border-bottom:1px solid #eee;text-align:center;">${r.status === 'competition' ? '●' : '○'}</td>
+          <td style="padding:10px;border-bottom:1px solid #eee;text-align:center;">${r.status === 'leave' ? '●' : '○'}</td>
+          <td style="padding:10px;border-bottom:1px solid #eee;text-align:center;">${r.status === 'absent' ? '●' : '○'}</td>
+          <td style="padding:10px;border-bottom:1px solid #eee;">${esc(r.parent_phone || '')}</td>
+          <td style="padding:10px;border-bottom:1px solid #eee;">${esc(r.notes || '')}</td>
+        </tr>`).join('');
+
+      const absentList = records.filter((r) => r.status === 'absent');
+      let absentPhones = '';
+      if (absentList.length) {
+        absentPhones = '<h3 style="color:#dc2626;margin-top:24px">無故未到 · 家長聯絡電話</h3><ul>' +
+          absentList.map((r) => `<li><strong>${esc(r.name)}</strong>：${esc(r.parent_phone || '（未填）')}</li>`).join('') +
+          '</ul>';
+      }
+
+      return `
+<div style="font-family:sans-serif;max-width:900px">
+  <div style="background:#047857;color:#fff;padding:24px;border-radius:12px 12px 0 0">
+    <h1 style="margin:0 0 8px;font-size:22px">中山國小桌球隊點名表</h1>
+    <p style="margin:0">日期：${esc(date)}</p>
+    <p style="margin:8px 0 0">送出時間：${esc(submittedAt)}</p>
+  </div>
+  <div style="padding:20px 24px;background:#fff;border:1px solid #e2e8f0;border-top:0">
+    <p style="color:#475569">○實到　○遲到　○比賽　○請假　○無故未到（●為該生今日狀態）</p>
+    <table style="width:100%;border-collapse:collapse;font-size:14px">
+      <thead><tr style="background:#f8fafc">
+        <th style="padding:10px;text-align:left">姓名</th><th style="padding:10px;text-align:left">班級</th>
+        <th style="padding:10px;text-align:center">○實到</th><th style="padding:10px;text-align:center">○遲到</th>
+        <th style="padding:10px;text-align:center">○比賽</th><th style="padding:10px;text-align:center">○請假</th>
+        <th style="padding:10px;text-align:center">○無故未到</th><th style="padding:10px;text-align:left">家長電話</th>
+        <th style="padding:10px;text-align:left">備註</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <p style="margin:20px 0 0">實到 ${summary.present} 人 · 遲到 ${summary.late} 人 · 比賽 ${summary.competition} 人 · 請假 ${summary.leave} 人 · 無故未到 ${summary.absent} 人</p>
+    ${absentPhones}
+  </div>
+</div>`.trim();
+    }
+
+    function emailJsReady() {
+      const e = CONFIG.EMAILJS;
+      return e.PUBLIC_KEY && e.SERVICE_ID && e.TEMPLATE_ID &&
+        !e.PUBLIC_KEY.includes('在這裡貼') &&
+        !e.SERVICE_ID.includes('在這裡貼') &&
+        !e.TEMPLATE_ID.includes('在這裡貼');
+    }
+
     async function submitRollcall() {
       $('submit-status').classList.add('hidden');
 
-      if (!CONFIG.GAS_URL || CONFIG.GAS_URL.includes('在這裡貼')) {
-        alert('請先設定 Google Apps Script 部署網址（見 docs/設定教學.md）');
+      if (!emailJsReady()) {
+        alert('請先設定 EmailJS（見 docs/EmailJS設定教學.md）');
         return;
       }
 
@@ -343,6 +412,8 @@
         return;
       }
 
+      const date = todayStr();
+      const submittedAt = nowStr();
       const records = roster.map((p) => ({
         playerId: p.id,
         name: p.name,
@@ -352,28 +423,25 @@
         notes: notesMap.get(p.id) ?? p.notes ?? '',
       }));
 
+      const summary = buildSummary(records);
+      const subject = `[點名表] ${date}｜實到${summary.present} 請假${summary.leave} 無故未到${summary.absent}`;
+      const messageHtml = buildEmailHtml(date, submittedAt, records);
+
       $('submit-rollcall-btn').disabled = true;
       $('submit-rollcall-btn').textContent = '送出中...';
 
       try {
-        const res = await fetch(CONFIG.GAS_URL, {
-          method: 'POST',
-          mode: 'cors',
-          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-          body: JSON.stringify({
-            secret: CONFIG.API_SECRET,
-            date: todayStr(),
-            submittedAt: nowStr(),
-            records,
-          }),
+        emailjs.init({ publicKey: CONFIG.EMAILJS.PUBLIC_KEY });
+        await emailjs.send(CONFIG.EMAILJS.SERVICE_ID, CONFIG.EMAILJS.TEMPLATE_ID, {
+          to_email: CONFIG.EMAIL_TO,
+          subject,
+          message_html: messageHtml,
         });
-        const result = await res.json();
-        if (!result.ok) throw new Error(result.error || '送出失敗');
 
         $('submit-status').classList.remove('hidden');
         $('submit-status').textContent = '✓ 已送達（Email 已寄至 ' + CONFIG.EMAIL_TO + '）';
       } catch (err) {
-        alert(err.message);
+        alert('Email 送出失敗：' + (err.text || err.message || '請檢查 EmailJS 設定'));
       } finally {
         $('submit-rollcall-btn').disabled = false;
         $('submit-rollcall-btn').textContent = '送出點名表';

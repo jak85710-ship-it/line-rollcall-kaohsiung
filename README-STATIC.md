@@ -1,13 +1,13 @@
 # 中山國小桌球隊 · 點名表（純前端版）
 
 > **目前使用方式：免伺服器、免 LINE 官方帳號**  
-> 固定網址 → LINE 群組記事本 → 教練手機點名 → Google 試算表 + Email
+> 固定網址 → LINE 群組記事本 → 教練手機點名 → **EmailJS 寄信**
 
 ## 快速開始
 
-1. **設定教學（必讀）**：[docs/設定教學.md](docs/設定教學.md)
-2. **點名表單**：`docs/index.html`（GitHub Pages 發布）
-3. **Google 後端**：`docs/google-apps-script.gs`（貼到 Apps Script）
+1. **設定教學**：[docs/設定教學.md](docs/設定教學.md)
+2. **Email 設定**：[docs/EmailJS設定教學.md](docs/EmailJS設定教學.md)
+3. **點名表單**：`docs/index.html`（GitHub Pages 發布）
 
 ### 固定網址（開啟 GitHub Pages 後）
 
