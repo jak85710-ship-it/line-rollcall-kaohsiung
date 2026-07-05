@@ -31,6 +31,7 @@
       transition: transform 0.1s;
     }
     .status-btn:active { transform: scale(0.95); }
+    .menu-panel { min-width: 120px; }
     .col-sticky-name {
       position: sticky;
       left: 0;
@@ -60,6 +61,7 @@
           <h2 class="font-bold text-lg">隊員清單</h2>
           <p id="today-label" class="text-sm text-slate-500"></p>
         </div>
+        <button id="add-btn" class="bg-emerald-600 text-white px-4 py-2 rounded-xl font-semibold">+ 新增隊員</button>
       </div>
 
       <div class="bg-white rounded-2xl shadow overflow-hidden">
@@ -84,6 +86,45 @@
         </div>
       </div>
     </div>
+
+    <div id="form-modal" class="hidden fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
+      <div class="bg-white rounded-2xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
+        <h3 id="form-title" class="font-bold text-lg mb-4">新增隊員</h3>
+        <form id="player-form" class="space-y-3">
+          <input type="hidden" id="edit-id">
+          <div class="grid grid-cols-2 gap-3">
+            <div class="col-span-2">
+              <label class="text-sm text-slate-600">學生姓名 *</label>
+              <input name="name" required class="w-full border rounded-xl px-3 py-2 mt-1">
+            </div>
+            <div class="col-span-2">
+              <label class="text-sm text-slate-600">班級 *</label>
+              <input name="grade" required class="w-full border rounded-xl px-3 py-2 mt-1">
+            </div>
+            <div class="col-span-2">
+              <label class="text-sm text-slate-600">家長姓名</label>
+              <input name="parent_name" class="w-full border rounded-xl px-3 py-2 mt-1">
+            </div>
+            <div class="col-span-2">
+              <label class="text-sm text-slate-600">家長手機</label>
+              <input name="parent_phone" type="tel" class="w-full border rounded-xl px-3 py-2 mt-1">
+            </div>
+            <div class="col-span-2">
+              <label class="text-sm text-slate-600">備用緊急電話</label>
+              <input name="emergency_phone" type="tel" class="w-full border rounded-xl px-3 py-2 mt-1">
+            </div>
+            <div class="col-span-2">
+              <label class="text-sm text-slate-600">備註</label>
+              <textarea name="notes" rows="2" class="w-full border rounded-xl px-3 py-2 mt-1"></textarea>
+            </div>
+          </div>
+          <div class="flex gap-3 pt-2">
+            <button type="button" id="cancel-btn" class="flex-1 border py-3 rounded-xl">取消</button>
+            <button type="submit" class="flex-1 bg-emerald-600 text-white py-3 rounded-xl font-bold">儲存</button>
+          </div>
+        </form>
+      </div>
+    </div>
   </div>
 
   <script>
@@ -94,7 +135,8 @@
       EMAIL_TO: 'ben83127@gmail.com',
     };
 
-    const ROSTER = [{"id":1,"name":"林詠晴","grade":"603","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":2,"name":"陳宥丞","grade":"606","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":3,"name":"顏靈潔","grade":"606","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":4,"name":"張友駿","grade":"608","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":5,"name":"陳建宇","grade":"608","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":6,"name":"陳彥勳","grade":"608","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":7,"name":"張驛宏","grade":"609","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":8,"name":"吳豐麟","grade":"609","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":9,"name":"蔡承蓁","grade":"","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":11,"name":"范修齊","grade":"","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":12,"name":"黃緯宸","grade":"","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":13,"name":"張語馨","grade":"","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":14,"name":"牛子銘","grade":"","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":15,"name":"黃子謙","grade":"","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":16,"name":"林頎叡","grade":"","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":17,"name":"李晨希","grade":"","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":18,"name":"施盈如","grade":"401","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":19,"name":"張育菁","grade":"402","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":20,"name":"吳米樂","grade":"403","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":21,"name":"洪子皓","grade":"405","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":22,"name":"黃子恩","grade":"405","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":23,"name":"施寀柏","grade":"405","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":24,"name":"許宸晞","grade":"406","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":25,"name":"楊采渟","grade":"406","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":26,"name":"黃宇宸","grade":"408","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":27,"name":"蘇玥橙","grade":"409","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":28,"name":"邱韵","grade":"410","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":29,"name":"林煥芝","grade":"","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":30,"name":"牛奕鈞","grade":"","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":31,"name":"胡宇帆","grade":"","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":32,"name":"楊季澄","grade":"","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":33,"name":"張語恩","grade":"","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":34,"name":"林鉉皓","grade":"","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":35,"name":"林稟竣","grade":"","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":36,"name":"洪光宇","grade":"","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":37,"name":"賴品妤","grade":"","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":38,"name":"林彥凱","grade":"","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":39,"name":"林子妍","grade":"","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":40,"name":"吳苡瑄","grade":"","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":41,"name":"陳彌亞","grade":"","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":42,"name":"張允柔","grade":"","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":43,"name":"張凱崴","grade":"","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":44,"name":"唐得泱","grade":"201","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":45,"name":"陳迺元","grade":"202","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":46,"name":"蔡承叡","grade":"203","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":47,"name":"李若寧","grade":"203","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":48,"name":"吳克宇","grade":"203","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":49,"name":"鐘硯誠","grade":"203","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":50,"name":"蘇新硯","grade":"204","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":51,"name":"魏培恩","grade":"204","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":52,"name":"李圓今","grade":"207","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":53,"name":"黃大誠","grade":"208","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":54,"name":"黃睿承","grade":"208","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":55,"name":"葉侑璇","grade":"208","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":56,"name":"魏畇溱","grade":"209","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":57,"name":"吳承鴻","grade":"210","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":58,"name":"林子元","grade":"","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":59,"name":"陳品淇","grade":"","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":60,"name":"陳品浤","grade":"","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":61,"name":"周平","grade":"","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":62,"name":"李方序","grade":"白兔班","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":63,"name":"蘇致謙","grade":"","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":64,"name":"邱聖傑","grade":"500","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true}];
+    const ROSTER_KEY = 'rollcall_roster_v1';
+    const DEFAULT_ROSTER = [{"id":1,"name":"林詠晴","grade":"603","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":2,"name":"陳宥丞","grade":"606","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":3,"name":"顏靈潔","grade":"606","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":4,"name":"張友駿","grade":"608","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":5,"name":"陳建宇","grade":"608","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":6,"name":"陳彥勳","grade":"608","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":7,"name":"張驛宏","grade":"609","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":8,"name":"吳豐麟","grade":"609","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":9,"name":"蔡承蓁","grade":"","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":11,"name":"范修齊","grade":"","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":12,"name":"黃緯宸","grade":"","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":13,"name":"張語馨","grade":"","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":14,"name":"牛子銘","grade":"","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":15,"name":"黃子謙","grade":"","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":16,"name":"林頎叡","grade":"","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":17,"name":"李晨希","grade":"","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":18,"name":"施盈如","grade":"401","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":19,"name":"張育菁","grade":"402","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":20,"name":"吳米樂","grade":"403","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":21,"name":"洪子皓","grade":"405","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":22,"name":"黃子恩","grade":"405","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":23,"name":"施寀柏","grade":"405","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":24,"name":"許宸晞","grade":"406","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":25,"name":"楊采渟","grade":"406","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":26,"name":"黃宇宸","grade":"408","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":27,"name":"蘇玥橙","grade":"409","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":28,"name":"邱韵","grade":"410","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":29,"name":"林煥芝","grade":"","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":30,"name":"牛奕鈞","grade":"","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":31,"name":"胡宇帆","grade":"","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":32,"name":"楊季澄","grade":"","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":33,"name":"張語恩","grade":"","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":34,"name":"林鉉皓","grade":"","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":35,"name":"林稟竣","grade":"","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":36,"name":"洪光宇","grade":"","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":37,"name":"賴品妤","grade":"","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":38,"name":"林彥凱","grade":"","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":39,"name":"林子妍","grade":"","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":40,"name":"吳苡瑄","grade":"","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":41,"name":"陳彌亞","grade":"","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":42,"name":"張允柔","grade":"","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":43,"name":"張凱崴","grade":"","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":44,"name":"唐得泱","grade":"201","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":45,"name":"陳迺元","grade":"202","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":46,"name":"蔡承叡","grade":"203","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":47,"name":"李若寧","grade":"203","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":48,"name":"吳克宇","grade":"203","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":49,"name":"鐘硯誠","grade":"203","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":50,"name":"蘇新硯","grade":"204","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":51,"name":"魏培恩","grade":"204","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":52,"name":"李圓今","grade":"207","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":53,"name":"黃大誠","grade":"208","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":54,"name":"黃睿承","grade":"208","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":55,"name":"葉侑璇","grade":"208","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":56,"name":"魏畇溱","grade":"209","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":57,"name":"吳承鴻","grade":"210","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":58,"name":"林子元","grade":"","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":59,"name":"陳品淇","grade":"","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":60,"name":"陳品浤","grade":"","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":61,"name":"周平","grade":"","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":62,"name":"李方序","grade":"白兔班","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":63,"name":"蘇致謙","grade":"","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true},{"id":64,"name":"邱聖傑","grade":"500","parent_name":"","parent_phone":"","emergency_phone":"","notes":"","is_active":true}];
 
     const STATUSES = [
       { key: 'present', label: '實到', head: 'bg-emerald-100 text-emerald-900', col: 'bg-emerald-50/80', btn: 'border-emerald-300 text-emerald-600', active: 'bg-emerald-600 border-emerald-700 text-white' },
@@ -108,8 +150,26 @@
     let roster = [];
     const attendance = new Map();
     const notesMap = new Map();
+    let openMenuId = null;
 
     const $ = (id) => document.getElementById(id);
+
+    function loadRosterFromStorage() {
+      try {
+        const saved = localStorage.getItem(ROSTER_KEY);
+        if (saved) return JSON.parse(saved);
+      } catch (e) { /* ignore */ }
+      return DEFAULT_ROSTER.map((p) => ({ ...p }));
+    }
+
+    function saveRosterToStorage() {
+      localStorage.setItem(ROSTER_KEY, JSON.stringify(roster));
+    }
+
+    function nextPlayerId() {
+      if (roster.length === 0) return 1;
+      return Math.max(...roster.map((p) => Number(p.id) || 0)) + 1;
+    }
 
     function todayStr() {
       return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei' }).format(new Date());
@@ -143,6 +203,23 @@
       showMain();
     }
 
+    function closeAllMenus() {
+      openMenuId = null;
+      document.querySelectorAll('.menu-panel').forEach((el) => el.classList.add('hidden'));
+    }
+
+    function toggleMenu(id, event) {
+      event.stopPropagation();
+      const panel = document.getElementById(`menu-${id}`);
+      if (openMenuId === id) {
+        closeAllMenus();
+        return;
+      }
+      closeAllMenus();
+      openMenuId = id;
+      panel.classList.remove('hidden');
+    }
+
     function setStatus(playerId, status) {
       attendance.set(playerId, status);
       renderTable();
@@ -150,14 +227,47 @@
 
     function saveNote(playerId, value) {
       notesMap.set(playerId, value);
+      const player = roster.find((p) => p.id === playerId);
+      if (player) {
+        player.notes = value;
+        saveRosterToStorage();
+      }
     }
 
     window.saveNote = (id, el) => saveNote(id, el.value);
     window.setStatus = setStatus;
+    window.toggleMenu = toggleMenu;
+
+    window.editPlayer = (id) => {
+      closeAllMenus();
+      openForm(roster.find((p) => p.id === id));
+    };
+
+    window.deletePlayer = (id) => {
+      closeAllMenus();
+      if (!confirm('確定刪除此隊員？')) return;
+      roster = roster.filter((p) => p.id !== id);
+      attendance.delete(id);
+      notesMap.delete(id);
+      saveRosterToStorage();
+      renderTable();
+    };
+
+    function openForm(player = null) {
+      closeAllMenus();
+      $('form-title').textContent = player ? '編輯隊員' : '新增隊員';
+      $('edit-id').value = player?.id || '';
+      const form = $('player-form');
+      for (const el of form.elements) {
+        if (el.name) el.value = player ? (player[el.name] || '') : '';
+      }
+      $('form-modal').classList.remove('hidden');
+    }
 
     function renderTable() {
-      let html = `<table class="w-full text-sm min-w-[900px] border-collapse"><thead class="text-slate-700">
+      let html = `<table class="w-full text-sm min-w-[980px] border-collapse"><thead class="text-slate-700">
         <tr class="label-row">
+          <th class="p-2 text-left bg-slate-50">操作</th>
           <th class="p-2 text-left col-sticky-name bg-slate-50">姓名</th>
           <th class="p-2 text-left bg-slate-50">班級</th>
           <th class="p-2 text-left bg-slate-50">家長電話</th>
@@ -171,13 +281,20 @@
       html += `</tr></thead><tbody>`;
 
       if (roster.length === 0) {
-        html += `<tr><td colspan="9" class="p-6 text-center text-slate-400">尚無隊員資料</td></tr>`;
+        html += `<tr><td colspan="10" class="p-6 text-center text-slate-400">尚無隊員資料</td></tr>`;
       }
 
       for (const p of roster) {
         const current = attendance.get(p.id) || '';
         const noteVal = esc(notesMap.get(p.id) ?? p.notes ?? '');
         html += `<tr class="border-t align-middle hover:bg-slate-50/50">
+          <td class="p-2 relative bg-white">
+            <button type="button" onclick="toggleMenu(${p.id}, event)" class="border border-slate-300 rounded-lg px-3 py-1.5 text-slate-700 bg-white hover:bg-slate-50">操作</button>
+            <div id="menu-${p.id}" class="menu-panel hidden absolute left-2 top-12 z-30 bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden">
+              <button type="button" onclick="editPlayer(${p.id})" class="block w-full text-left px-4 py-2 hover:bg-slate-50 text-emerald-700">編輯</button>
+              <button type="button" onclick="deletePlayer(${p.id})" class="block w-full text-left px-4 py-2 hover:bg-slate-50 text-red-600">刪除</button>
+            </div>
+          </td>
           <td class="p-3 font-semibold col-sticky-name bg-white">${esc(p.name)}</td>
           <td class="p-3 bg-white">${esc(p.grade)}</td>
           <td class="p-3 whitespace-nowrap bg-white">${esc(p.parent_phone)}</td>
@@ -204,7 +321,7 @@
     }
 
     function loadPlayers() {
-      roster = ROSTER.filter((p) => p.is_active && p.name);
+      roster = loadRosterFromStorage().filter((p) => p.is_active !== false && p.name);
       for (const p of roster) {
         if (!attendance.has(p.id)) attendance.set(p.id, '');
         if (!notesMap.has(p.id)) notesMap.set(p.id, p.notes || '');
@@ -263,9 +380,51 @@
       }
     }
 
+    document.addEventListener('click', closeAllMenus);
+
     $('login-btn').addEventListener('click', tryLogin);
     $('token-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') tryLogin(); });
+    $('add-btn').addEventListener('click', () => openForm());
+    $('cancel-btn').addEventListener('click', () => $('form-modal').classList.add('hidden'));
     $('submit-rollcall-btn').addEventListener('click', submitRollcall);
+
+    $('player-form').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const data = Object.fromEntries(new FormData(e.target));
+      const id = $('edit-id').value;
+
+      if (id) {
+        const player = roster.find((p) => p.id === Number(id));
+        if (player) {
+          Object.assign(player, {
+            name: data.name.trim(),
+            grade: data.grade.trim(),
+            parent_name: data.parent_name?.trim() || '',
+            parent_phone: data.parent_phone?.trim() || '',
+            emergency_phone: data.emergency_phone?.trim() || '',
+            notes: data.notes?.trim() || '',
+          });
+        }
+      } else {
+        const newPlayer = {
+          id: nextPlayerId(),
+          name: data.name.trim(),
+          grade: data.grade.trim(),
+          parent_name: data.parent_name?.trim() || '',
+          parent_phone: data.parent_phone?.trim() || '',
+          emergency_phone: data.emergency_phone?.trim() || '',
+          notes: data.notes?.trim() || '',
+          is_active: true,
+        };
+        roster.push(newPlayer);
+        attendance.set(newPlayer.id, '');
+        notesMap.set(newPlayer.id, newPlayer.notes);
+      }
+
+      saveRosterToStorage();
+      $('form-modal').classList.add('hidden');
+      renderTable();
+    });
 
     if (adminToken === CONFIG.PASSWORD) showMain();
   </script>
