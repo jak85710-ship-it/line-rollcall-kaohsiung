@@ -9,7 +9,8 @@
     "init-sheets": "node scripts/init-sheets.js",
     "seed": "node scripts/init-sheets.js --seed",
     "import-roster": "node scripts/import-from-xlsx.js",
-    "setup-rich-menu": "node scripts/setup-rich-menu.js"
+    "setup-rich-menu": "node scripts/setup-rich-menu.js",
+    "build-static": "node scripts/build-static-html.js"
   },
   "engines": {
     "node": ">=18.0.0"
