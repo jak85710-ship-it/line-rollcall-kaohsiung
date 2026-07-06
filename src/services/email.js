@@ -10,6 +10,9 @@ function createTransporter() {
     host: config.smtp.host,
     port: config.smtp.port,
     secure: config.smtp.secure,
+    connectionTimeout: 15000,
+    greetingTimeout: 10000,
+    socketTimeout: 20000,
     auth: {
       user: config.smtp.user,
       pass: config.smtp.pass,

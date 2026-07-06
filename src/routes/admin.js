@@ -1,5 +1,4 @@
 const express = require('express');
-const config = require('../config');
 const players = require('../services/players');
 const rollcallLocal = require('../services/rollcall-local');
 const { sendAdminRollcallEmail } = require('../services/email');
@@ -7,6 +6,7 @@ const { requireAdminAuth } = require('../middleware/auth');
 
 const router = express.Router();
 const VALID_STATUSES = ['present', 'late', 'competition', 'leave', 'absent'];
+const EMAIL_TIMEOUT_MS = 20000;
 
 function todayInTaipei() {
   return new Intl.DateTimeFormat('en-CA', {
@@ -17,55 +17,14 @@ function todayInTaipei() {
   }).format(new Date());
 }
 
+function withTimeout(promise, ms, fallbackValue) {
+  return Promise.race([
+    promise,
+    new Promise((resolve) => setTimeout(() => resolve(fallbackValue), ms)),
+  ]);
+}
+
 router.use(requireAdminAuth);
-
-router.get('/email-status', (req, res) => {
-  const configured = Boolean(config.smtp.user && config.smtp.pass);
-  res.json({
-    configured,
-    smtpUser: config.smtp.user || '',
-    emailTo: config.email.to || 'ben83127@gmail.com',
-    message: configured
-      ? `Email 已設定，寄到 ${config.email.to || 'ben83127@gmail.com'}`
-      : 'SMTP_PASS 未設定，請到 Render Environment 填入 Gmail 應用程式密碼',
-  });
-});
-
-router.post('/email-test', async (req, res) => {
-  try {
-    const sessionDate = todayInTaipei();
-    const submittedAt = new Intl.DateTimeFormat('zh-TW', {
-      timeZone: 'Asia/Taipei',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-      hour12: false,
-    }).format(new Date());
-
-    const result = await sendAdminRollcallEmail({
-      sessionDate,
-      submittedAt,
-      records: [{
-        name: '測試寄信',
-        grade: '-',
-        status: 'present',
-        parent_phone: '',
-        notes: '這是一封測試信，代表 Email 設定成功',
-      }],
-      summary: { present: 1, late: 0, competition: 0, leave: 0, absent: 0 },
-    });
-
-    if (result.sent) {
-      return res.json({ success: true, message: `測試信已寄至 ${result.to}` });
-    }
-    return res.status(400).json({ error: result.reason || 'Email 寄送失敗' });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
 
 router.get('/players', async (req, res) => {
   try {
@@ -210,12 +169,18 @@ router.post('/rollcall', async (req, res) => {
       summary,
     });
 
-    const emailResult = await sendAdminRollcallEmail({
+    const emailPayload = {
       sessionDate,
       submittedAt,
       records: detailRecords,
       summary,
-    });
+    };
+
+    const emailResult = await withTimeout(
+      sendAdminRollcallEmail(emailPayload),
+      EMAIL_TIMEOUT_MS,
+      { sent: false, reason: `SMTP timeout after ${EMAIL_TIMEOUT_MS / 1000}s` }
+    );
 
     res.json({
       success: true,
