@@ -44,22 +44,21 @@ app.get('/liff/rollcall', (req, res) => {
 });
 
 app.get('/health', (req, res) => {
-  const data = {
+  res.status(200).json({
     status: 'ok',
     service: 'csh-tt-rollcall',
     admin: `${config.baseUrl}/admin/`,
     storage: playerStore.useGoogleSheets() ? 'google-sheets' : 'local-json',
-  };
-  // 瀏覽器誤開 /health 時，導向點名表（Render 監控仍收 JSON）
-  if (req.accepts('html') && req.query.raw !== '1') {
-    return res.redirect('/admin/');
-  }
-  res.json(data);
+  });
 });
 
 app.get('/', sendAdminPanel);
 
 async function start() {
+  app.listen(config.port, '0.0.0.0', () => {
+    console.log(`Listening on port ${config.port}`);
+  });
+
   try {
     if (playerStore.useGoogleSheets()) {
       await initSheets();
@@ -73,16 +72,17 @@ async function start() {
     console.error('[Sheets] Init failed:', error.message);
   }
 
-  app.listen(config.port, async () => {
+  try {
     const roster = await playerStore.getAllPlayers();
     console.log(`Server running at ${config.baseUrl}`);
-    console.log(`LIFF rollcall: ${config.baseUrl}/liff/rollcall.html`);
     console.log(`Admin panel: ${config.baseUrl}/admin/`);
     console.log(`隊員名單：${roster.length} 位（${playerStore.useGoogleSheets() ? 'Google Sheets' : '本機 data/players.json'}）`);
     if (config.google.spreadsheetId) {
       console.log(`Google Sheet: https://docs.google.com/spreadsheets/d/${config.google.spreadsheetId}`);
     }
-  });
+  } catch (error) {
+    console.error('[Startup] Failed to load roster:', error.message);
+  }
 }
 
 start();
