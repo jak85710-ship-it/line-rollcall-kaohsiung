@@ -46,7 +46,7 @@
   <div class="max-w-6xl mx-auto p-4 md:p-8">
     <header class="mb-6">
       <h1 class="text-2xl font-bold text-slate-800">中山國小桌球隊 · 點名表</h1>
-      <p class="text-slate-500 mt-1">密碼 12345 · 每位學生請選擇一項 ○ 狀態</p>
+      <p class="text-slate-500 mt-1">密碼 12345 · 有點到的學生選 ○ 狀態後即可送出</p>
     </header>
 
     <div id="login-panel" class="bg-white rounded-2xl shadow p-6 max-w-md">
@@ -314,17 +314,18 @@
 
     async function submitRollcall() {
       $('submit-status').classList.add('hidden');
-      const missing = roster.filter((p) => !attendance.get(p.id));
-      if (missing.length) {
-        alert(`尚有 ${missing.length} 位隊員未選擇狀態，請每位各選一項 ○`);
+      const records = roster
+        .filter((p) => attendance.get(p.id))
+        .map((p) => ({
+          playerId: p.id,
+          status: attendance.get(p.id),
+          notes: notesMap.get(p.id) ?? p.notes ?? '',
+        }));
+
+      if (records.length === 0) {
+        alert('請至少選擇一位隊員的出席狀態');
         return;
       }
-
-      const records = roster.map((p) => ({
-        playerId: p.id,
-        status: attendance.get(p.id),
-        notes: notesMap.get(p.id) ?? p.notes ?? '',
-      }));
 
       $('submit-rollcall-btn').disabled = true;
       $('submit-rollcall-btn').textContent = '送出中...';

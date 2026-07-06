@@ -118,17 +118,13 @@ router.post('/rollcall', async (req, res) => {
       const roster = await players.getActivePlayers();
       const rosterMap = Object.fromEntries(roster.map((p) => [p.id, p]));
 
-      if (records.length !== roster.length) {
-        return res.status(400).json({ error: '請為每位隊員各選擇一項出席狀態' });
-      }
-
       for (const record of records) {
+        if (!record.status || !VALID_STATUSES.includes(record.status)) {
+          continue;
+        }
         const player = rosterMap[record.playerId];
         if (!player) {
           return res.status(400).json({ error: `無效的隊員 ID: ${record.playerId}` });
-        }
-        if (!VALID_STATUSES.includes(record.status)) {
-          return res.status(400).json({ error: '無效的出席狀態' });
         }
         summary[record.status] += 1;
         detailRecords.push({

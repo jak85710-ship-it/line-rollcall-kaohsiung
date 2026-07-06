@@ -265,23 +265,24 @@
 
     async function submitRollcall() {
       $('submit-status').classList.add('hidden');
-      const missing = roster.filter((p) => !attendance.get(p.id));
-      if (missing.length) {
-        alert(`尚有 ${missing.length} 位隊員未選擇狀態，請每位各選一項 ○`);
+      const records = roster
+        .filter((p) => attendance.get(p.id))
+        .map((p) => ({
+          playerId: p.id,
+          name: p.name,
+          grade: p.grade || '',
+          status: attendance.get(p.id),
+          parent_phone: p.parent_phone || '',
+          notes: notesMap.get(p.id) ?? p.notes ?? '',
+        }));
+
+      if (records.length === 0) {
+        alert('請至少選擇一位隊員的出席狀態');
         return;
       }
 
       const date = todayStr();
       const submittedAt = nowStr();
-      const records = roster.map((p) => ({
-        playerId: p.id,
-        name: p.name,
-        grade: p.grade || '',
-        status: attendance.get(p.id),
-        parent_phone: p.parent_phone || '',
-        notes: notesMap.get(p.id) ?? p.notes ?? '',
-      }));
-
       const summary = buildSummary(records);
       const subject = `[點名表] ${date}｜實到${summary.present} 請假${summary.leave} 無故未到${summary.absent}`;
       const messageHtml = buildEmailHtml(date, submittedAt, records);
