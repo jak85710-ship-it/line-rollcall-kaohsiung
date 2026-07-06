@@ -61,10 +61,13 @@ app.get('/', sendAdminPanel);
 
 async function start() {
   try {
-    if (config.google.spreadsheetId) {
+    if (playerStore.useGoogleSheets()) {
       await initSheets();
+      console.log('[Storage] 使用 Google Sheets 儲存隊員資料');
+    } else if (config.google.spreadsheetId) {
+      console.warn('[Warning] GOOGLE_SPREADSHEET_ID 已設定但缺少 Service Account，改用本機 data/players.json');
     } else {
-      console.warn('[Warning] GOOGLE_SPREADSHEET_ID 未設定，請完成 Google Sheets 串接');
+      console.log('[Storage] 使用本機 data/players.json（未設定 Google Sheets，屬正常）');
     }
   } catch (error) {
     console.error('[Sheets] Init failed:', error.message);
