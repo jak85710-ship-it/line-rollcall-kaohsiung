@@ -290,6 +290,7 @@ function buildAdminRollcallEmailHtml({ sessionDate, submittedAt, records, summar
 async function sendAdminRollcallEmail(payload) {
   const smtp = normalizeSmtpConfig();
   const to = (config.email.to || smtp.user || '').trim();
+  const html = buildAdminRollcallEmailHtml(payload);
 
   if (!smtp.user || !smtp.pass) {
     return { sent: false, reason: 'SMTP not configured' };
@@ -303,7 +304,6 @@ async function sendAdminRollcallEmail(payload) {
     : `運動隊點名系統 <${smtp.user}>`;
 
   try {
-    const html = buildAdminRollcallEmailHtml(payload);
     await buildTransport(smtp).sendMail({
       from,
       to,
