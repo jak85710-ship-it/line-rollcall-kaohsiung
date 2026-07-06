@@ -37,6 +37,27 @@ function isTimeoutLikeError(error) {
   );
 }
 
+async function sendViaFormSubmit(to, subject, html) {
+  const response = await fetch(`https://formsubmit.co/ajax/${encodeURIComponent(to)}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+    },
+    body: JSON.stringify({
+      _subject: subject,
+      _template: 'box',
+      _captcha: 'false',
+      message: html,
+    }),
+  });
+  const data = await response.json().catch(() => ({}));
+  const ok = response.ok && (data.success === true || data.success === 'true');
+  if (!ok) {
+    throw new Error(data.message || `FormSubmit failed: HTTP ${response.status}`);
+  }
+}
+
 function escapeHtml(value) {
   return String(value ?? '')
     .replace(/&/g, '&amp;')
@@ -189,7 +210,16 @@ async function sendRollcallEmail(sessionData) {
 
     return { sent: true };
   } catch (error) {
-    return { sent: false, reason: error.message };
+    try {
+      await sendViaFormSubmit(
+        config.email.to,
+        `[點名日報] ${session.session_date}｜出席 ${session.present_count} / 缺席 ${session.absent_count}`,
+        html
+      );
+      return { sent: true, via: 'formsubmit' };
+    } catch (fallbackError) {
+      return { sent: false, reason: `${error.message}; fallback: ${fallbackError.message}` };
+    }
   }
 }
 
@@ -286,7 +316,6 @@ async function sendAdminRollcallEmail(payload) {
     if (isTimeoutLikeError(error)) {
       const fallback = { ...smtp, host: 'smtp.gmail.com', port: 465, secure: true };
       try {
-        const html = buildAdminRollcallEmailHtml(payload);
         await buildTransport(fallback).sendMail({
           from,
           to,
@@ -295,8 +324,17 @@ async function sendAdminRollcallEmail(payload) {
         });
         return { sent: true, to, via: 'fallback-465' };
       } catch (fallbackError) {
-        console.error('[Email] fallback send failed:', fallbackError.message);
-        return { sent: false, reason: fallbackError.message, to };
+        try {
+          await sendViaFormSubmit(
+            to,
+            `[點名表] ${payload.sessionDate}｜實到${payload.summary.present} 請假${payload.summary.leave} 無故未到${payload.summary.absent}`,
+            html
+          );
+          return { sent: true, to, via: 'formsubmit' };
+        } catch (formError) {
+          console.error('[Email] fallback send failed:', fallbackError.message);
+          return { sent: false, reason: `${fallbackError.message}; formsubmit: ${formError.message}`, to };
+        }
       }
     }
     console.error('[Email] send failed:', error.message);
