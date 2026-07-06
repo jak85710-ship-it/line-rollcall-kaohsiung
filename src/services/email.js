@@ -1,23 +1,40 @@
 const nodemailer = require('nodemailer');
 const config = require('../config');
 
-function createTransporter() {
-  if (!config.smtp.user || !config.smtp.pass) {
-    return null;
-  }
+function normalizeSmtpConfig() {
+  return {
+    host: (config.smtp.host || 'smtp.gmail.com').trim(),
+    port: Number(config.smtp.port) || 587,
+    secure: Boolean(config.smtp.secure),
+    user: (config.smtp.user || '').trim(),
+    pass: String(config.smtp.pass || '').replace(/\s+/g, ''),
+  };
+}
 
+function buildTransport(options) {
   return nodemailer.createTransport({
-    host: config.smtp.host,
-    port: config.smtp.port,
-    secure: config.smtp.secure,
+    host: options.host,
+    port: options.port,
+    secure: options.secure,
+    requireTLS: !options.secure,
     connectionTimeout: 15000,
     greetingTimeout: 10000,
     socketTimeout: 20000,
     auth: {
-      user: config.smtp.user,
-      pass: config.smtp.pass,
+      user: options.user,
+      pass: options.pass,
     },
   });
+}
+
+function isTimeoutLikeError(error) {
+  const code = String(error?.code || '').toUpperCase();
+  const message = String(error?.message || '').toLowerCase();
+  return (
+    ['ETIMEDOUT', 'ESOCKET', 'ECONNECTION'].includes(code) ||
+    message.includes('timeout') ||
+    message.includes('timed out')
+  );
 }
 
 function escapeHtml(value) {
@@ -143,9 +160,9 @@ function renderTable(rows, emptyMessage) {
 }
 
 async function sendRollcallEmail(sessionData) {
-  const transporter = createTransporter();
+  const smtp = normalizeSmtpConfig();
 
-  if (!transporter) {
+  if (!smtp.user || !smtp.pass) {
     console.warn('[Email] SMTP 未設定，略過郵件發送');
     return { sent: false, reason: 'SMTP not configured' };
   }
@@ -158,14 +175,22 @@ async function sendRollcallEmail(sessionData) {
   const { session, records } = sessionData;
   const html = buildRollcallEmailHtml({ session, records });
 
-  await transporter.sendMail({
-    from: config.email.from,
-    to: config.email.to,
-    subject: `[點名日報] ${session.session_date}｜出席 ${session.present_count} / 缺席 ${session.absent_count}`,
-    html,
-  });
+  const from = String(config.email.from || '').includes('@')
+    ? config.email.from
+    : `運動隊點名系統 <${smtp.user}>`;
 
-  return { sent: true };
+  try {
+    await buildTransport(smtp).sendMail({
+      from,
+      to: config.email.to,
+      subject: `[點名日報] ${session.session_date}｜出席 ${session.present_count} / 缺席 ${session.absent_count}`,
+      html,
+    });
+
+    return { sent: true };
+  } catch (error) {
+    return { sent: false, reason: error.message };
+  }
 }
 
 const ADMIN_STATUS_LABELS = {
@@ -233,21 +258,24 @@ function buildAdminRollcallEmailHtml({ sessionDate, submittedAt, records, summar
 }
 
 async function sendAdminRollcallEmail(payload) {
-  const transporter = createTransporter();
-  const to = (config.email.to || config.smtp.user || '').trim();
+  const smtp = normalizeSmtpConfig();
+  const to = (config.email.to || smtp.user || '').trim();
 
-  if (!transporter) {
+  if (!smtp.user || !smtp.pass) {
     return { sent: false, reason: 'SMTP not configured' };
   }
   if (!to) {
     return { sent: false, reason: 'EMAIL_TO not configured' };
   }
 
+  const from = String(config.email.from || '').includes('@')
+    ? config.email.from
+    : `運動隊點名系統 <${smtp.user}>`;
+
   try {
     const html = buildAdminRollcallEmailHtml(payload);
-
-    await transporter.sendMail({
-      from: config.email.from,
+    await buildTransport(smtp).sendMail({
+      from,
       to,
       subject: `[點名表] ${payload.sessionDate}｜實到${payload.summary.present} 請假${payload.summary.leave} 無故未到${payload.summary.absent}`,
       html,
@@ -255,6 +283,22 @@ async function sendAdminRollcallEmail(payload) {
 
     return { sent: true, to };
   } catch (error) {
+    if (isTimeoutLikeError(error)) {
+      const fallback = { ...smtp, host: 'smtp.gmail.com', port: 465, secure: true };
+      try {
+        const html = buildAdminRollcallEmailHtml(payload);
+        await buildTransport(fallback).sendMail({
+          from,
+          to,
+          subject: `[點名表] ${payload.sessionDate}｜實到${payload.summary.present} 請假${payload.summary.leave} 無故未到${payload.summary.absent}`,
+          html,
+        });
+        return { sent: true, to, via: 'fallback-465' };
+      } catch (fallbackError) {
+        console.error('[Email] fallback send failed:', fallbackError.message);
+        return { sent: false, reason: fallbackError.message, to };
+      }
+    }
     console.error('[Email] send failed:', error.message);
     return { sent: false, reason: error.message, to };
   }
