@@ -6,7 +6,6 @@ const { requireAdminAuth } = require('../middleware/auth');
 
 const router = express.Router();
 const VALID_STATUSES = ['present', 'late', 'competition', 'leave', 'absent'];
-const EMAIL_TIMEOUT_MS = 20000;
 
 function todayInTaipei() {
   return new Intl.DateTimeFormat('en-CA', {
@@ -15,13 +14,6 @@ function todayInTaipei() {
     month: '2-digit',
     day: '2-digit',
   }).format(new Date());
-}
-
-function withTimeout(promise, ms, fallbackValue) {
-  return Promise.race([
-    promise,
-    new Promise((resolve) => setTimeout(() => resolve(fallbackValue), ms)),
-  ]);
 }
 
 router.use(requireAdminAuth);
@@ -176,11 +168,7 @@ router.post('/rollcall', async (req, res) => {
       summary,
     };
 
-    const emailResult = await withTimeout(
-      sendAdminRollcallEmail(emailPayload),
-      EMAIL_TIMEOUT_MS,
-      { sent: false, reason: `SMTP timeout after ${EMAIL_TIMEOUT_MS / 1000}s` }
-    );
+    const emailResult = await sendAdminRollcallEmail(emailPayload);
 
     res.json({
       success: true,
