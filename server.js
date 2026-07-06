@@ -30,7 +30,7 @@ function sendAdminPanel(req, res) {
   res.sendFile(adminIndex);
 }
 
-app.get('/admin', (req, res) => res.redirect('/admin/'));
+app.get('/admin', sendAdminPanel);
 app.get('/admin/', sendAdminPanel);
 app.get('/admin/index.html', sendAdminPanel);
 app.use('/admin', express.static(adminDir, { index: false }));
