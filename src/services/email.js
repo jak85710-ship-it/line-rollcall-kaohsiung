@@ -231,14 +231,13 @@ function buildAdminRollcallEmailHtml({ sessionDate, submittedAt, records, summar
 
 async function sendAdminRollcallEmail(payload) {
   const transporter = createTransporter();
-  const to = config.email.to || 'ben83127@gmail.com';
+  const to = (config.email.to || config.smtp.user || '').trim();
 
   if (!transporter) {
-    return {
-      sent: false,
-      reason: 'SMTP_PASS 未設定，請到 Render Environment 填入 Gmail 應用程式密碼',
-      to,
-    };
+    return { sent: false, reason: 'SMTP not configured' };
+  }
+  if (!to) {
+    return { sent: false, reason: 'EMAIL_TO not configured' };
   }
 
   try {

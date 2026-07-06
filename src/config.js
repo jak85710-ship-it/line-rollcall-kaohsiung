@@ -32,6 +32,6 @@ module.exports = {
   },
   email: {
     from: process.env.EMAIL_FROM || '運動隊點名系統 <noreply@example.com>',
-    to: process.env.EMAIL_TO || '',
+    to: process.env.EMAIL_TO || process.env.SMTP_USER || '',
   },
 };

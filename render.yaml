@@ -20,13 +20,13 @@ services:
       - key: SMTP_SECURE
         value: false
       - key: SMTP_USER
-        value: ben83127@gmail.com
+        sync: false
       - key: SMTP_PASS
         sync: false
       - key: EMAIL_FROM
-        value: "運動隊點名系統 <ben83127@gmail.com>"
+        sync: false
       - key: EMAIL_TO
-        value: ben83127@gmail.com
+        sync: false
       - key: LINE_CHANNEL_ID
         sync: false
       - key: LINE_CHANNEL_ACCESS_TOKEN
