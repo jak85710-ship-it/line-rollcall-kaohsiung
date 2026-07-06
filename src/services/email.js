@@ -17,13 +17,37 @@ function buildTransport(options) {
     port: options.port,
     secure: options.secure,
     requireTLS: !options.secure,
-    connectionTimeout: 15000,
-    greetingTimeout: 10000,
-    socketTimeout: 20000,
+    connectionTimeout: 30000,
+    greetingTimeout: 30000,
+    socketTimeout: 45000,
+    tls: {
+      rejectUnauthorized: false,
+    },
     auth: {
       user: options.user,
       pass: options.pass,
     },
+  });
+}
+
+function buildSmtpCandidates(smtp) {
+  const starttls587 = { ...smtp, host: 'smtp.gmail.com', port: 587, secure: false };
+  const ssl465 = { ...smtp, host: 'smtp.gmail.com', port: 465, secure: true };
+  const original = { ...smtp };
+  const raw = [];
+
+  if (original.port === 465 && original.secure) {
+    raw.push(starttls587, ssl465);
+  } else {
+    raw.push(original, starttls587, ssl465);
+  }
+
+  const seen = new Set();
+  return raw.filter((item) => {
+    const key = `${item.host}:${item.port}:${item.secure}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
   });
 }
 
@@ -56,6 +80,30 @@ async function sendViaFormSubmit(to, subject, html) {
   if (!ok) {
     throw new Error(data.message || `FormSubmit failed: HTTP ${response.status}`);
   }
+}
+
+async function sendViaSmtpCandidates({ smtp, from, to, subject, html }) {
+  const candidates = buildSmtpCandidates(smtp);
+  let lastError = null;
+
+  for (const candidate of candidates) {
+    try {
+      await buildTransport(candidate).sendMail({
+        from,
+        to,
+        subject,
+        html,
+      });
+      return {
+        sent: true,
+        via: `smtp-${candidate.port}-${candidate.secure ? 'ssl' : 'starttls'}`,
+      };
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  throw lastError || new Error('SMTP send failed');
 }
 
 function escapeHtml(value) {
@@ -199,21 +247,23 @@ async function sendRollcallEmail(sessionData) {
   const from = String(config.email.from || '').includes('@')
     ? config.email.from
     : `運動隊點名系統 <${smtp.user}>`;
+  const subject = `[點名日報] ${session.session_date}｜出席 ${session.present_count} / 缺席 ${session.absent_count}`;
 
   try {
-    await buildTransport(smtp).sendMail({
+    const smtpResult = await sendViaSmtpCandidates({
+      smtp,
       from,
       to: config.email.to,
-      subject: `[點名日報] ${session.session_date}｜出席 ${session.present_count} / 缺席 ${session.absent_count}`,
+      subject,
       html,
     });
 
-    return { sent: true };
+    return { sent: true, via: smtpResult.via };
   } catch (error) {
     try {
       await sendViaFormSubmit(
         config.email.to,
-        `[點名日報] ${session.session_date}｜出席 ${session.present_count} / 缺席 ${session.absent_count}`,
+        subject,
         html
       );
       return { sent: true, via: 'formsubmit' };
@@ -302,39 +352,26 @@ async function sendAdminRollcallEmail(payload) {
   const from = String(config.email.from || '').includes('@')
     ? config.email.from
     : `運動隊點名系統 <${smtp.user}>`;
+  const subject = `[點名表] ${payload.sessionDate}｜實到${payload.summary.present} 請假${payload.summary.leave} 無故未到${payload.summary.absent}`;
 
   try {
-    await buildTransport(smtp).sendMail({
+    const smtpResult = await sendViaSmtpCandidates({
+      smtp,
       from,
       to,
-      subject: `[點名表] ${payload.sessionDate}｜實到${payload.summary.present} 請假${payload.summary.leave} 無故未到${payload.summary.absent}`,
+      subject,
       html,
     });
 
-    return { sent: true, to };
+    return { sent: true, to, via: smtpResult.via };
   } catch (error) {
     if (isTimeoutLikeError(error)) {
-      const fallback = { ...smtp, host: 'smtp.gmail.com', port: 465, secure: true };
       try {
-        await buildTransport(fallback).sendMail({
-          from,
-          to,
-          subject: `[點名表] ${payload.sessionDate}｜實到${payload.summary.present} 請假${payload.summary.leave} 無故未到${payload.summary.absent}`,
-          html,
-        });
-        return { sent: true, to, via: 'fallback-465' };
-      } catch (fallbackError) {
-        try {
-          await sendViaFormSubmit(
-            to,
-            `[點名表] ${payload.sessionDate}｜實到${payload.summary.present} 請假${payload.summary.leave} 無故未到${payload.summary.absent}`,
-            html
-          );
-          return { sent: true, to, via: 'formsubmit' };
-        } catch (formError) {
-          console.error('[Email] fallback send failed:', fallbackError.message);
-          return { sent: false, reason: `${fallbackError.message}; formsubmit: ${formError.message}`, to };
-        }
+        await sendViaFormSubmit(to, subject, html);
+        return { sent: true, to, via: 'formsubmit' };
+      } catch (formError) {
+        console.error('[Email] fallback send failed:', error.message);
+        return { sent: false, reason: `${error.message}; formsubmit: ${formError.message}`, to };
       }
     }
     console.error('[Email] send failed:', error.message);
