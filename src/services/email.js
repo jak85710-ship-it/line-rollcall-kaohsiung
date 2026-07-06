@@ -263,6 +263,7 @@ async function sendRollcallEmail(sessionData) {
   const smtp = normalizeSmtpConfig();
   const resend = normalizeResendConfig();
   const to = (config.email.to || smtp.user || '').trim();
+  let resendErrorMessage = '';
 
   if (!to) {
     console.warn('[Email] EMAIL_TO 未設定，略過郵件發送');
@@ -286,11 +287,13 @@ async function sendRollcallEmail(sessionData) {
       return { sent: true, via: 'resend', to };
     } catch (resendError) {
       console.error('[Email] resend failed:', resendError.message);
+      resendErrorMessage = resendError.message;
     }
   }
 
   if (!smtp.user || !smtp.pass) {
-    return { sent: false, reason: 'SMTP not configured and RESEND_API_KEY missing', to };
+    const baseReason = 'SMTP not configured and RESEND_API_KEY missing';
+    return { sent: false, reason: resendErrorMessage ? `${baseReason}; resend: ${resendErrorMessage}` : baseReason, to };
   }
 
   try {
@@ -312,7 +315,8 @@ async function sendRollcallEmail(sessionData) {
       );
       return { sent: true, via: 'formsubmit', to };
     } catch (fallbackError) {
-      return { sent: false, reason: `${error.message}; fallback: ${fallbackError.message}` };
+      const joined = `${error.message}; fallback: ${fallbackError.message}`;
+      return { sent: false, reason: resendErrorMessage ? `resend: ${resendErrorMessage}; ${joined}` : joined };
     }
   }
 }
@@ -386,6 +390,7 @@ async function sendAdminRollcallEmail(payload) {
   const resend = normalizeResendConfig();
   const to = (config.email.to || smtp.user || '').trim();
   const html = buildAdminRollcallEmailHtml(payload);
+  let resendErrorMessage = '';
 
   if (!to) {
     return { sent: false, reason: 'EMAIL_TO not configured' };
@@ -406,11 +411,17 @@ async function sendAdminRollcallEmail(payload) {
       return { sent: true, to, via: 'resend' };
     } catch (resendError) {
       console.error('[Email] resend failed:', resendError.message);
+      resendErrorMessage = resendError.message;
     }
   }
 
   if (!smtp.user || !smtp.pass) {
-    return { sent: false, reason: 'SMTP not configured and RESEND_API_KEY missing', to };
+    const baseReason = 'SMTP not configured and RESEND_API_KEY missing';
+    return {
+      sent: false,
+      reason: resendErrorMessage ? `${baseReason}; resend: ${resendErrorMessage}` : baseReason,
+      to,
+    };
   }
 
   try {
@@ -430,11 +441,12 @@ async function sendAdminRollcallEmail(payload) {
         return { sent: true, to, via: 'formsubmit' };
       } catch (formError) {
         console.error('[Email] fallback send failed:', error.message);
-        return { sent: false, reason: `${error.message}; formsubmit: ${formError.message}`, to };
+        const joined = `${error.message}; formsubmit: ${formError.message}`;
+        return { sent: false, reason: resendErrorMessage ? `resend: ${resendErrorMessage}; ${joined}` : joined, to };
       }
     }
     console.error('[Email] send failed:', error.message);
-    return { sent: false, reason: error.message, to };
+    return { sent: false, reason: resendErrorMessage ? `resend: ${resendErrorMessage}; smtp: ${error.message}` : error.message, to };
   }
 }
 
