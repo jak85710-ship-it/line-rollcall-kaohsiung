@@ -20,7 +20,20 @@ app.use('/api', apiRoutes);
 app.use('/admin/api', adminRoutes);
 app.use('/line', lineRoutes);
 app.use('/liff', express.static(path.join(__dirname, 'public', 'liff')));
-app.use('/admin', express.static(path.join(__dirname, 'public', 'admin')));
+
+const adminDir = path.join(__dirname, 'public', 'admin');
+const adminIndex = path.join(adminDir, 'index.html');
+
+function sendAdminPanel(req, res) {
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
+  res.set('Pragma', 'no-cache');
+  res.sendFile(adminIndex);
+}
+
+app.get('/admin', (req, res) => res.redirect('/admin/'));
+app.get('/admin/', sendAdminPanel);
+app.get('/admin/index.html', sendAdminPanel);
+app.use('/admin', express.static(adminDir, { index: false }));
 
 app.get('/liff/rollcall', (req, res) => {
   const liffId = config.line.liffId;
@@ -44,13 +57,7 @@ app.get('/health', (req, res) => {
   res.json(data);
 });
 
-app.get('/admin', (req, res) => {
-  res.redirect('/admin/');
-});
-
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'admin', 'index.html'));
-});
+app.get('/', sendAdminPanel);
 
 async function start() {
   try {
