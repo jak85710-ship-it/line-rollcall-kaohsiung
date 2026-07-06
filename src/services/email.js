@@ -234,19 +234,28 @@ async function sendAdminRollcallEmail(payload) {
   const to = config.email.to || 'ben83127@gmail.com';
 
   if (!transporter) {
-    return { sent: false, reason: 'SMTP not configured' };
+    return {
+      sent: false,
+      reason: 'SMTP_PASS 未設定，請到 Render Environment 填入 Gmail 應用程式密碼',
+      to,
+    };
   }
 
-  const html = buildAdminRollcallEmailHtml(payload);
+  try {
+    const html = buildAdminRollcallEmailHtml(payload);
 
-  await transporter.sendMail({
-    from: config.email.from,
-    to,
-    subject: `[點名表] ${payload.sessionDate}｜實到${payload.summary.present} 請假${payload.summary.leave} 無故未到${payload.summary.absent}`,
-    html,
-  });
+    await transporter.sendMail({
+      from: config.email.from,
+      to,
+      subject: `[點名表] ${payload.sessionDate}｜實到${payload.summary.present} 請假${payload.summary.leave} 無故未到${payload.summary.absent}`,
+      html,
+    });
 
-  return { sent: true, to };
+    return { sent: true, to };
+  } catch (error) {
+    console.error('[Email] send failed:', error.message);
+    return { sent: false, reason: error.message, to };
+  }
 }
 
 module.exports = {

@@ -62,7 +62,9 @@
           <p id="today-label" class="text-sm text-slate-500"></p>
         </div>
         <button id="add-btn" class="bg-emerald-600 text-white px-4 py-2 rounded-xl font-semibold">+ 新增隊員</button>
+        <button id="email-test-btn" type="button" class="border border-slate-300 text-slate-700 px-4 py-2 rounded-xl font-semibold">測試寄信</button>
       </div>
+      <p id="email-status" class="text-sm text-slate-500"></p>
 
       <div class="bg-white rounded-2xl shadow overflow-hidden">
         <div class="flex flex-wrap gap-2 px-4 pt-3 pb-2 text-xs font-semibold border-b border-slate-100">
@@ -171,6 +173,35 @@
       $('main-panel').classList.remove('hidden');
       $('today-label').textContent = `今日：${todayStr()}`;
       loadPlayers();
+      loadEmailStatus();
+    }
+
+    async function loadEmailStatus() {
+      try {
+        const data = await api('/email-status');
+        const el = $('email-status');
+        el.textContent = data.message;
+        el.className = data.configured
+          ? 'text-sm text-emerald-700 font-medium'
+          : 'text-sm text-amber-700 font-medium';
+      } catch {
+        $('email-status').textContent = '';
+      }
+    }
+
+    async function testEmail() {
+      $('email-test-btn').disabled = true;
+      $('email-test-btn').textContent = '寄信中...';
+      try {
+        const result = await api('/email-test', { method: 'POST' });
+        alert(result.message || '測試信已寄出，請到信箱查看');
+        loadEmailStatus();
+      } catch (err) {
+        alert(`Email 測試失敗：${err.message}`);
+      } finally {
+        $('email-test-btn').disabled = false;
+        $('email-test-btn').textContent = '測試寄信';
+      }
     }
 
     function closeAllMenus() {
@@ -336,11 +367,14 @@
           body: JSON.stringify({ date: todayStr(), records }),
         });
 
-        $('submit-status').classList.remove('hidden');
+        $('submit-status').classList.remove('hidden', 'text-amber-700');
+        $('submit-status').classList.add('text-emerald-700');
         if (result.email?.sent) {
-          $('submit-status').textContent = '✓ 已送達（Email 已寄至 ben83127@gmail.com）';
+          $('submit-status').textContent = `✓ 已送達（Email 已寄至 ${result.email.to || 'ben83127@gmail.com'}）`;
         } else {
-          $('submit-status').textContent = '✓ 已送達（Email 需設定 SMTP 才會寄出）';
+          $('submit-status').classList.remove('text-emerald-700');
+          $('submit-status').classList.add('text-amber-700');
+          $('submit-status').textContent = `✓ 點名已儲存，但 Email 未寄出：${result.email?.reason || 'SMTP 未設定'}`;
         }
       } catch (err) {
         alert(err.message);
@@ -364,6 +398,7 @@
     });
 
     $('add-btn').addEventListener('click', () => openForm());
+    $('email-test-btn').addEventListener('click', testEmail);
     $('cancel-btn').addEventListener('click', () => $('form-modal').classList.add('hidden'));
     $('submit-rollcall-btn').addEventListener('click', submitRollcall);
 
