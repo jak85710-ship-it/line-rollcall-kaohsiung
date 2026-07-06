@@ -34,4 +34,8 @@ module.exports = {
     from: process.env.EMAIL_FROM || '運動隊點名系統 <noreply@example.com>',
     to: process.env.EMAIL_TO || process.env.SMTP_USER || '',
   },
+  resend: {
+    apiKey: process.env.RESEND_API_KEY || '',
+    from: process.env.RESEND_FROM || 'onboarding@resend.dev',
+  },
 };

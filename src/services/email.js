@@ -11,6 +11,13 @@ function normalizeSmtpConfig() {
   };
 }
 
+function normalizeResendConfig() {
+  return {
+    apiKey: (config.resend?.apiKey || '').trim(),
+    from: (config.resend?.from || '').trim() || 'onboarding@resend.dev',
+  };
+}
+
 function buildTransport(options) {
   return nodemailer.createTransport({
     host: options.host,
@@ -80,6 +87,30 @@ async function sendViaFormSubmit(to, subject, html) {
   if (!ok) {
     throw new Error(data.message || `FormSubmit failed: HTTP ${response.status}`);
   }
+}
+
+async function sendViaResend({ apiKey, from, to, subject, html }) {
+  const response = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      from,
+      to: [to],
+      subject,
+      html,
+    }),
+  });
+
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const message = data?.message || data?.error || `Resend failed: HTTP ${response.status}`;
+    throw new Error(message);
+  }
+
+  return data;
 }
 
 async function sendViaSmtpCandidates({ smtp, from, to, subject, html }) {
@@ -230,43 +261,56 @@ function renderTable(rows, emptyMessage) {
 
 async function sendRollcallEmail(sessionData) {
   const smtp = normalizeSmtpConfig();
+  const resend = normalizeResendConfig();
+  const to = (config.email.to || smtp.user || '').trim();
 
-  if (!smtp.user || !smtp.pass) {
-    console.warn('[Email] SMTP 未設定，略過郵件發送');
-    return { sent: false, reason: 'SMTP not configured' };
-  }
-
-  if (!config.email.to) {
+  if (!to) {
     console.warn('[Email] EMAIL_TO 未設定，略過郵件發送');
     return { sent: false, reason: 'EMAIL_TO not configured' };
   }
 
   const { session, records } = sessionData;
   const html = buildRollcallEmailHtml({ session, records });
-
-  const from = String(config.email.from || '').includes('@')
-    ? config.email.from
-    : `運動隊點名系統 <${smtp.user}>`;
+  const from = String(config.email.from || '').includes('@') ? config.email.from : `運動隊點名系統 <${to}>`;
   const subject = `[點名日報] ${session.session_date}｜出席 ${session.present_count} / 缺席 ${session.absent_count}`;
+
+  if (resend.apiKey) {
+    try {
+      await sendViaResend({
+        apiKey: resend.apiKey,
+        from: resend.from,
+        to,
+        subject,
+        html,
+      });
+      return { sent: true, via: 'resend', to };
+    } catch (resendError) {
+      console.error('[Email] resend failed:', resendError.message);
+    }
+  }
+
+  if (!smtp.user || !smtp.pass) {
+    return { sent: false, reason: 'SMTP not configured and RESEND_API_KEY missing', to };
+  }
 
   try {
     const smtpResult = await sendViaSmtpCandidates({
       smtp,
       from,
-      to: config.email.to,
+      to,
       subject,
       html,
     });
 
-    return { sent: true, via: smtpResult.via };
+    return { sent: true, via: smtpResult.via, to };
   } catch (error) {
     try {
       await sendViaFormSubmit(
-        config.email.to,
+        to,
         subject,
         html
       );
-      return { sent: true, via: 'formsubmit' };
+      return { sent: true, via: 'formsubmit', to };
     } catch (fallbackError) {
       return { sent: false, reason: `${error.message}; fallback: ${fallbackError.message}` };
     }
@@ -339,20 +383,35 @@ function buildAdminRollcallEmailHtml({ sessionDate, submittedAt, records, summar
 
 async function sendAdminRollcallEmail(payload) {
   const smtp = normalizeSmtpConfig();
+  const resend = normalizeResendConfig();
   const to = (config.email.to || smtp.user || '').trim();
   const html = buildAdminRollcallEmailHtml(payload);
 
-  if (!smtp.user || !smtp.pass) {
-    return { sent: false, reason: 'SMTP not configured' };
-  }
   if (!to) {
     return { sent: false, reason: 'EMAIL_TO not configured' };
   }
 
-  const from = String(config.email.from || '').includes('@')
-    ? config.email.from
-    : `運動隊點名系統 <${smtp.user}>`;
+  const from = String(config.email.from || '').includes('@') ? config.email.from : `運動隊點名系統 <${to}>`;
   const subject = `[點名表] ${payload.sessionDate}｜實到${payload.summary.present} 請假${payload.summary.leave} 無故未到${payload.summary.absent}`;
+
+  if (resend.apiKey) {
+    try {
+      await sendViaResend({
+        apiKey: resend.apiKey,
+        from: resend.from,
+        to,
+        subject,
+        html,
+      });
+      return { sent: true, to, via: 'resend' };
+    } catch (resendError) {
+      console.error('[Email] resend failed:', resendError.message);
+    }
+  }
+
+  if (!smtp.user || !smtp.pass) {
+    return { sent: false, reason: 'SMTP not configured and RESEND_API_KEY missing', to };
+  }
 
   try {
     const smtpResult = await sendViaSmtpCandidates({
