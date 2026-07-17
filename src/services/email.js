@@ -137,6 +137,78 @@ async function sendViaSmtpCandidates({ smtp, from, to, subject, html }) {
   throw lastError || new Error('SMTP send failed');
 }
 
+function resolveFromAddress(smtpUser, fallbackTo) {
+  const configured = String(config.email.from || '').trim();
+  if (configured.includes('@')) return configured;
+  const mailbox = (smtpUser || fallbackTo || 'noreply@example.com').trim();
+  return `運動隊點名系統 <${mailbox}>`;
+}
+
+async function deliverEmail({ to, subject, html }) {
+  const smtp = normalizeSmtpConfig();
+  const resend = normalizeResendConfig();
+  const normalizedTo = (to || config.email.to || smtp.user || '').trim();
+
+  if (!normalizedTo) {
+    return { sent: false, reason: 'EMAIL_TO not configured' };
+  }
+
+  let resendErrorMessage = '';
+  if (resend.apiKey) {
+    try {
+      await sendViaResend({
+        apiKey: resend.apiKey,
+        from: resend.from,
+        to: normalizedTo,
+        subject,
+        html,
+      });
+      return { sent: true, via: 'resend', to: normalizedTo };
+    } catch (resendError) {
+      resendErrorMessage = resendError.message;
+      console.error('[Email] resend failed:', resendErrorMessage);
+    }
+  }
+
+  const from = resolveFromAddress(smtp.user, normalizedTo);
+  if (smtp.user && smtp.pass) {
+    try {
+      const smtpResult = await sendViaSmtpCandidates({
+        smtp,
+        from,
+        to: normalizedTo,
+        subject,
+        html,
+      });
+      return { sent: true, via: smtpResult.via, to: normalizedTo };
+    } catch (smtpError) {
+      if (!isTimeoutLikeError(smtpError)) {
+        const reason = resendErrorMessage
+          ? `resend: ${resendErrorMessage}; smtp: ${smtpError.message}`
+          : smtpError.message;
+        return { sent: false, reason, to: normalizedTo };
+      }
+      try {
+        await sendViaFormSubmit(normalizedTo, subject, html);
+        return { sent: true, via: 'formsubmit', to: normalizedTo };
+      } catch (formError) {
+        const joined = `${smtpError.message}; formsubmit: ${formError.message}`;
+        const reason = resendErrorMessage ? `resend: ${resendErrorMessage}; ${joined}` : joined;
+        return { sent: false, reason, to: normalizedTo };
+      }
+    }
+  }
+
+  try {
+    await sendViaFormSubmit(normalizedTo, subject, html);
+    return { sent: true, via: 'formsubmit', to: normalizedTo };
+  } catch (formError) {
+    const baseReason = `SMTP not configured and RESEND_API_KEY missing; formsubmit: ${formError.message}`;
+    const reason = resendErrorMessage ? `resend: ${resendErrorMessage}; ${baseReason}` : baseReason;
+    return { sent: false, reason, to: normalizedTo };
+  }
+}
+
 function escapeHtml(value) {
   return String(value ?? '')
     .replace(/&/g, '&amp;')
@@ -260,65 +332,10 @@ function renderTable(rows, emptyMessage) {
 }
 
 async function sendRollcallEmail(sessionData) {
-  const smtp = normalizeSmtpConfig();
-  const resend = normalizeResendConfig();
-  const to = (config.email.to || smtp.user || '').trim();
-  let resendErrorMessage = '';
-
-  if (!to) {
-    console.warn('[Email] EMAIL_TO 未設定，略過郵件發送');
-    return { sent: false, reason: 'EMAIL_TO not configured' };
-  }
-
   const { session, records } = sessionData;
   const html = buildRollcallEmailHtml({ session, records });
-  const from = String(config.email.from || '').includes('@') ? config.email.from : `運動隊點名系統 <${to}>`;
   const subject = `[點名日報] ${session.session_date}｜出席 ${session.present_count} / 缺席 ${session.absent_count}`;
-
-  if (resend.apiKey) {
-    try {
-      await sendViaResend({
-        apiKey: resend.apiKey,
-        from: resend.from,
-        to,
-        subject,
-        html,
-      });
-      return { sent: true, via: 'resend', to };
-    } catch (resendError) {
-      console.error('[Email] resend failed:', resendError.message);
-      resendErrorMessage = resendError.message;
-    }
-  }
-
-  if (!smtp.user || !smtp.pass) {
-    const baseReason = 'SMTP not configured and RESEND_API_KEY missing';
-    return { sent: false, reason: resendErrorMessage ? `${baseReason}; resend: ${resendErrorMessage}` : baseReason, to };
-  }
-
-  try {
-    const smtpResult = await sendViaSmtpCandidates({
-      smtp,
-      from,
-      to,
-      subject,
-      html,
-    });
-
-    return { sent: true, via: smtpResult.via, to };
-  } catch (error) {
-    try {
-      await sendViaFormSubmit(
-        to,
-        subject,
-        html
-      );
-      return { sent: true, via: 'formsubmit', to };
-    } catch (fallbackError) {
-      const joined = `${error.message}; fallback: ${fallbackError.message}`;
-      return { sent: false, reason: resendErrorMessage ? `resend: ${resendErrorMessage}; ${joined}` : joined };
-    }
-  }
+  return deliverEmail({ to: config.email.to, subject, html });
 }
 
 const ADMIN_STATUS_LABELS = {
@@ -386,73 +403,201 @@ function buildAdminRollcallEmailHtml({ sessionDate, submittedAt, records, summar
 }
 
 async function sendAdminRollcallEmail(payload) {
-  const smtp = normalizeSmtpConfig();
-  const resend = normalizeResendConfig();
-  const to = (config.email.to || smtp.user || '').trim();
   const html = buildAdminRollcallEmailHtml(payload);
-  let resendErrorMessage = '';
-
-  if (!to) {
-    return { sent: false, reason: 'EMAIL_TO not configured' };
-  }
-
-  const from = String(config.email.from || '').includes('@') ? config.email.from : `運動隊點名系統 <${to}>`;
   const subject = `[點名表] ${payload.sessionDate}｜實到${payload.summary.present} 請假${payload.summary.leave} 無故未到${payload.summary.absent}`;
+  return deliverEmail({ to: config.email.to, subject, html });
+}
 
-  if (resend.apiKey) {
-    try {
-      await sendViaResend({
-        apiKey: resend.apiKey,
-        from: resend.from,
-        to,
-        subject,
-        html,
-      });
-      return { sent: true, to, via: 'resend' };
-    } catch (resendError) {
-      console.error('[Email] resend failed:', resendError.message);
-      resendErrorMessage = resendError.message;
-    }
-  }
+function buildRollcallRangeSummaryHtml({ startDate, endDate, generatedAt, sessions }) {
+  const totals = { present: 0, late: 0, competition: 0, leave: 0, absent: 0 };
+  const playerMap = new Map();
 
-  if (!smtp.user || !smtp.pass) {
-    const baseReason = 'SMTP not configured and RESEND_API_KEY missing';
-    return {
-      sent: false,
-      reason: resendErrorMessage ? `${baseReason}; resend: ${resendErrorMessage}` : baseReason,
-      to,
-    };
-  }
+  for (const session of sessions) {
+    const summary = session.summary || {};
+    totals.present += Number(summary.present || 0);
+    totals.late += Number(summary.late || 0);
+    totals.competition += Number(summary.competition || 0);
+    totals.leave += Number(summary.leave || 0);
+    totals.absent += Number(summary.absent || 0);
 
-  try {
-    const smtpResult = await sendViaSmtpCandidates({
-      smtp,
-      from,
-      to,
-      subject,
-      html,
-    });
-
-    return { sent: true, to, via: smtpResult.via };
-  } catch (error) {
-    if (isTimeoutLikeError(error)) {
-      try {
-        await sendViaFormSubmit(to, subject, html);
-        return { sent: true, to, via: 'formsubmit' };
-      } catch (formError) {
-        console.error('[Email] fallback send failed:', error.message);
-        const joined = `${error.message}; formsubmit: ${formError.message}`;
-        return { sent: false, reason: resendErrorMessage ? `resend: ${resendErrorMessage}; ${joined}` : joined, to };
+    for (const record of session.records || []) {
+      const key = `${record.playerId || ''}-${record.name || ''}`;
+      if (!playerMap.has(key)) {
+        playerMap.set(key, {
+          name: record.name || '',
+          grade: record.grade || '',
+          present: 0,
+          late: 0,
+          competition: 0,
+          leave: 0,
+          absent: 0,
+          total: 0,
+          lastDate: '',
+          lastStatus: '',
+        });
+      }
+      const row = playerMap.get(key);
+      const status = String(record.status || '');
+      if (status in totals) {
+        row[status] += 1;
+        row.total += 1;
+      }
+      if (!row.lastDate || String(session.sessionDate) > row.lastDate) {
+        row.lastDate = session.sessionDate || '';
+        row.lastStatus = record.statusLabel || ADMIN_STATUS_LABELS[status] || status;
       }
     }
-    console.error('[Email] send failed:', error.message);
-    return { sent: false, reason: resendErrorMessage ? `resend: ${resendErrorMessage}; smtp: ${error.message}` : error.message, to };
   }
+
+  const playerRows = Array.from(playerMap.values())
+    .sort((a, b) => b.total - a.total || a.name.localeCompare(b.name, 'zh-Hant'))
+    .map(
+      (r) => `
+      <tr>
+        <td style="padding:8px;border-bottom:1px solid #eee;">${escapeHtml(r.name)}</td>
+        <td style="padding:8px;border-bottom:1px solid #eee;">${escapeHtml(r.grade || '-')}</td>
+        <td style="padding:8px;border-bottom:1px solid #eee;text-align:center;">${r.total}</td>
+        <td style="padding:8px;border-bottom:1px solid #eee;text-align:center;">${r.present}</td>
+        <td style="padding:8px;border-bottom:1px solid #eee;text-align:center;">${r.late}</td>
+        <td style="padding:8px;border-bottom:1px solid #eee;text-align:center;">${r.competition}</td>
+        <td style="padding:8px;border-bottom:1px solid #eee;text-align:center;">${r.leave}</td>
+        <td style="padding:8px;border-bottom:1px solid #eee;text-align:center;">${r.absent}</td>
+        <td style="padding:8px;border-bottom:1px solid #eee;">${escapeHtml(r.lastDate || '-')}</td>
+        <td style="padding:8px;border-bottom:1px solid #eee;">${escapeHtml(r.lastStatus || '-')}</td>
+      </tr>`
+    )
+    .join('');
+
+  const sessionRows = sessions
+    .map((s) => {
+      const summary = s.summary || {};
+      const count = (s.records || []).length;
+      return `
+      <tr>
+        <td style="padding:8px;border-bottom:1px solid #eee;">${escapeHtml(s.sessionDate || '-')}</td>
+        <td style="padding:8px;border-bottom:1px solid #eee;">${escapeHtml(s.submittedAt || '-')}</td>
+        <td style="padding:8px;border-bottom:1px solid #eee;text-align:center;">${count}</td>
+        <td style="padding:8px;border-bottom:1px solid #eee;text-align:center;">${Number(summary.present || 0)}</td>
+        <td style="padding:8px;border-bottom:1px solid #eee;text-align:center;">${Number(summary.late || 0)}</td>
+        <td style="padding:8px;border-bottom:1px solid #eee;text-align:center;">${Number(summary.competition || 0)}</td>
+        <td style="padding:8px;border-bottom:1px solid #eee;text-align:center;">${Number(summary.leave || 0)}</td>
+        <td style="padding:8px;border-bottom:1px solid #eee;text-align:center;">${Number(summary.absent || 0)}</td>
+      </tr>`;
+    })
+    .join('');
+
+  const detailSections = sessions
+    .map((s) => {
+      const rows = (s.records || [])
+        .map(
+          (r) => `
+          <tr>
+            <td style="padding:8px;border-bottom:1px solid #eee;">${escapeHtml(r.name || '')}</td>
+            <td style="padding:8px;border-bottom:1px solid #eee;">${escapeHtml(r.grade || '-')}</td>
+            <td style="padding:8px;border-bottom:1px solid #eee;">${escapeHtml(r.statusLabel || ADMIN_STATUS_LABELS[r.status] || r.status || '-')}</td>
+            <td style="padding:8px;border-bottom:1px solid #eee;">${escapeHtml(r.parent_phone || '')}</td>
+            <td style="padding:8px;border-bottom:1px solid #eee;">${escapeHtml(r.notes || '')}</td>
+          </tr>`
+        )
+        .join('');
+      return `
+      <h3 style="margin:20px 0 8px;font-size:16px;color:#0f172a;">${escapeHtml(s.sessionDate || '-')}（送出：${escapeHtml(s.submittedAt || '-')})</h3>
+      <table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:12px;">
+        <thead>
+          <tr style="background:#f8fafc;">
+            <th style="padding:8px;text-align:left;">姓名</th>
+            <th style="padding:8px;text-align:left;">班級</th>
+            <th style="padding:8px;text-align:left;">狀態</th>
+            <th style="padding:8px;text-align:left;">家長電話</th>
+            <th style="padding:8px;text-align:left;">備註</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>`;
+    })
+    .join('');
+
+  return `
+  <html lang="zh-Hant">
+  <head><meta charset="UTF-8"><title>點名彙整 ${escapeHtml(startDate)} ~ ${escapeHtml(endDate)}</title></head>
+  <body style="font-family:Segoe UI,Arial,sans-serif;background:#f8fafc;padding:20px;color:#0f172a;">
+    <div style="max-width:980px;margin:0 auto;background:#fff;border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,0.08);overflow:hidden;">
+      <div style="background:#047857;color:#fff;padding:20px;">
+        <h1 style="margin:0;font-size:22px;">點名彙整報表</h1>
+        <p style="margin:8px 0 0;">期間：${escapeHtml(startDate)} ～ ${escapeHtml(endDate)}</p>
+        <p style="margin:6px 0 0;">產生時間：${escapeHtml(generatedAt)}｜共 ${sessions.length} 次點名</p>
+      </div>
+      <div style="padding:20px;">
+        <h2 style="margin:0 0 10px;font-size:18px;">期間總覽</h2>
+        <p style="margin:0 0 16px;color:#334155;">
+          實到 ${totals.present} 人次 · 遲到 ${totals.late} 人次 · 比賽 ${totals.competition} 人次 · 請假 ${totals.leave} 人次 · 無故未到 ${totals.absent} 人次
+        </p>
+
+        <h2 style="margin:0 0 10px;font-size:18px;">每日統計</h2>
+        <table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:18px;">
+          <thead>
+            <tr style="background:#f8fafc;">
+              <th style="padding:8px;text-align:left;">日期</th>
+              <th style="padding:8px;text-align:left;">送出時間</th>
+              <th style="padding:8px;text-align:center;">人數</th>
+              <th style="padding:8px;text-align:center;">實到</th>
+              <th style="padding:8px;text-align:center;">遲到</th>
+              <th style="padding:8px;text-align:center;">比賽</th>
+              <th style="padding:8px;text-align:center;">請假</th>
+              <th style="padding:8px;text-align:center;">無故未到</th>
+            </tr>
+          </thead>
+          <tbody>${sessionRows}</tbody>
+        </table>
+
+        <h2 style="margin:0 0 10px;font-size:18px;">隊員統計（完整）</h2>
+        <table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:18px;">
+          <thead>
+            <tr style="background:#f8fafc;">
+              <th style="padding:8px;text-align:left;">姓名</th>
+              <th style="padding:8px;text-align:left;">班級</th>
+              <th style="padding:8px;text-align:center;">出現次數</th>
+              <th style="padding:8px;text-align:center;">實到</th>
+              <th style="padding:8px;text-align:center;">遲到</th>
+              <th style="padding:8px;text-align:center;">比賽</th>
+              <th style="padding:8px;text-align:center;">請假</th>
+              <th style="padding:8px;text-align:center;">無故未到</th>
+              <th style="padding:8px;text-align:left;">最近日期</th>
+              <th style="padding:8px;text-align:left;">最近狀態</th>
+            </tr>
+          </thead>
+          <tbody>${playerRows}</tbody>
+        </table>
+
+        <h2 style="margin:0 0 10px;font-size:18px;">各次點名明細（完整）</h2>
+        ${detailSections}
+      </div>
+    </div>
+  </body>
+  </html>`.trim();
+}
+
+async function sendRollcallRangeSummaryEmail({ startDate, endDate, sessions }) {
+  const generatedAt = new Intl.DateTimeFormat('zh-TW', {
+    timeZone: 'Asia/Taipei',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  }).format(new Date());
+
+  const html = buildRollcallRangeSummaryHtml({ startDate, endDate, generatedAt, sessions });
+  const subject = `[點名彙整] ${startDate}~${endDate}（共 ${sessions.length} 次）`;
+  return deliverEmail({ to: config.email.to, subject, html });
 }
 
 module.exports = {
   sendRollcallEmail,
   sendAdminRollcallEmail,
+  sendRollcallRangeSummaryEmail,
   buildRollcallEmailHtml,
   buildAdminRollcallEmailHtml,
   ADMIN_STATUS_LABELS,

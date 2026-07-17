@@ -1,7 +1,7 @@
 const express = require('express');
 const players = require('../services/players');
 const rollcallLocal = require('../services/rollcall-local');
-const { sendAdminRollcallEmail } = require('../services/email');
+const { sendAdminRollcallEmail, sendRollcallRangeSummaryEmail } = require('../services/email');
 const { requireAdminAuth } = require('../middleware/auth');
 
 const router = express.Router();
@@ -14,6 +14,13 @@ function todayInTaipei() {
     month: '2-digit',
     day: '2-digit',
   }).format(new Date());
+}
+
+function toDateString(input, fallback) {
+  if (!input) return fallback;
+  const raw = String(input).trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return fallback;
+  return raw;
 }
 
 router.use(requireAdminAuth);
@@ -82,6 +89,39 @@ router.delete('/players/:id', async (req, res) => {
     res.json({ success: true, deleted });
   } catch (error) {
     res.status(500).json({ error: error.message });
+  }
+});
+
+router.post('/rollcall/summary-email', async (req, res) => {
+  try {
+    const endDate = toDateString(req.body.endDate, todayInTaipei());
+    const startDate = toDateString(req.body.startDate, '2026-07-10');
+
+    if (startDate > endDate) {
+      return res.status(400).json({ error: '起始日期不可晚於結束日期' });
+    }
+
+    const sessions = rollcallLocal
+      .loadSessions()
+      .filter((s) => s.sessionDate && s.sessionDate >= startDate && s.sessionDate <= endDate)
+      .sort((a, b) => String(a.sessionDate).localeCompare(String(b.sessionDate)));
+
+    if (sessions.length === 0) {
+      return res.status(404).json({ error: `找不到 ${startDate} ~ ${endDate} 的點名資料` });
+    }
+
+    const email = await sendRollcallRangeSummaryEmail({ startDate, endDate, sessions });
+    res.json({
+      success: true,
+      message: `已整理 ${sessions.length} 筆點名並寄出彙整`,
+      startDate,
+      endDate,
+      sessions: sessions.length,
+      email,
+    });
+  } catch (error) {
+    console.error('[Rollcall Summary Email]', error);
+    res.status(500).json({ error: '彙整寄送失敗' });
   }
 });
 
