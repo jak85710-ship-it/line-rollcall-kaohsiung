@@ -3,6 +3,7 @@ const config = require('../config');
 
 const SHEET_PLAYERS = '隊員名單';
 const SHEET_ROLLCALL = '點名紀錄';
+const SHEET_ADMIN_ROLLCALL = '管理點名紀錄';
 
 const PLAYER_HEADERS = [
   'id', '姓名', '年級', '家長姓名', '家長電話', '備用電話', '備註', '啟用',
@@ -11,6 +12,11 @@ const PLAYER_HEADERS = [
 const ROLLCALL_HEADERS = [
   'batch_id', '日期', '教練LINE_ID', '教練姓名', 'player_id',
   '姓名', '年級', '狀態', '家長電話', '備用電話', '送出時間',
+];
+
+const ADMIN_ROLLCALL_HEADERS = [
+  'session_id', '日期', '送出時間', 'player_id', '姓名',
+  '班級', '狀態代碼', '狀態名稱', '家長電話', '備註',
 ];
 
 let sheetsClient;
@@ -331,6 +337,92 @@ async function saveRollcall({ sessionDate, coachLineUserId, coachName, records }
   return getSessionWithRecords(batchId);
 }
 
+function rowToAdminRollcallRecord(row) {
+  return {
+    session_id: row[0] || '',
+    session_date: row[1] || '',
+    submitted_at: row[2] || '',
+    player_id: Number(row[3]) || 0,
+    name: row[4] || '',
+    grade: row[5] || '',
+    status: row[6] || '',
+    statusLabel: row[7] || '',
+    parent_phone: row[8] || '',
+    notes: row[9] || '',
+  };
+}
+
+async function saveAdminRollcallSession({ sessionDate, submittedAt, records, summary }) {
+  const sessionId = `${sessionDate}_${Date.now()}`;
+  const rows = records.map((record) => [
+    sessionId,
+    sessionDate,
+    submittedAt,
+    record.playerId || record.id || '',
+    record.name || '',
+    record.grade || '',
+    record.status || '',
+    record.statusLabel || '',
+    record.parent_phone || '',
+    record.notes || '',
+  ]);
+
+  if (rows.length > 0) {
+    await appendRows(SHEET_ADMIN_ROLLCALL, rows);
+  }
+
+  return {
+    sessionId,
+    sessionDate,
+    submittedAt,
+    records,
+    summary,
+  };
+}
+
+async function getAdminRollcallSessionsByDateRange(startDate, endDate) {
+  const rows = await readSheet(SHEET_ADMIN_ROLLCALL);
+  if (rows.length <= 1) return [];
+
+  const grouped = new Map();
+
+  for (const row of rows.slice(1)) {
+    const record = rowToAdminRollcallRecord(row);
+    if (!record.session_date || record.session_date < startDate || record.session_date > endDate) {
+      continue;
+    }
+    if (!grouped.has(record.session_id)) {
+      grouped.set(record.session_id, {
+        sessionDate: record.session_date,
+        submittedAt: record.submitted_at,
+        records: [],
+        summary: { present: 0, late: 0, competition: 0, leave: 0, absent: 0 },
+      });
+    }
+
+    const session = grouped.get(record.session_id);
+    const status = record.status;
+    if (session.summary[status] !== undefined) {
+      session.summary[status] += 1;
+    }
+    session.records.push({
+      playerId: record.player_id,
+      name: record.name,
+      grade: record.grade,
+      parent_phone: record.parent_phone,
+      notes: record.notes,
+      status: record.status,
+      statusLabel: record.statusLabel,
+    });
+  }
+
+  return Array.from(grouped.values()).sort((a, b) => {
+    const dateOrder = String(a.sessionDate).localeCompare(String(b.sessionDate));
+    if (dateOrder !== 0) return dateOrder;
+    return String(a.submittedAt).localeCompare(String(b.submittedAt));
+  });
+}
+
 async function bulkImportPlayers(players) {
   const header = PLAYER_HEADERS;
   const rows = [header, ...players.map((p) => playerToRow({ ...p, is_active: true }))];
@@ -379,6 +471,7 @@ async function initSheets({ seedSample = false } = {}) {
   const sheets = await getSheets();
   await ensureSheetExists(sheets, SHEET_PLAYERS, PLAYER_HEADERS);
   await ensureSheetExists(sheets, SHEET_ROLLCALL, ROLLCALL_HEADERS);
+  await ensureSheetExists(sheets, SHEET_ADMIN_ROLLCALL, ADMIN_ROLLCALL_HEADERS);
 
   if (seedSample) {
     const players = await getActivePlayers();
@@ -407,5 +500,7 @@ module.exports = {
   getSessionByDateAndCoach,
   getSessionWithRecords,
   saveRollcall,
+  saveAdminRollcallSession,
+  getAdminRollcallSessionsByDateRange,
   markEmailSent,
 };

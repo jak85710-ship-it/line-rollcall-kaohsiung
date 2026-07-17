@@ -1,5 +1,6 @@
 const express = require('express');
 const players = require('../services/players');
+const sheets = require('../services/sheets');
 const rollcallLocal = require('../services/rollcall-local');
 const { sendAdminRollcallEmail, sendRollcallRangeSummaryEmail } = require('../services/email');
 const { requireAdminAuth } = require('../middleware/auth');
@@ -101,10 +102,12 @@ router.post('/rollcall/summary-email', async (req, res) => {
       return res.status(400).json({ error: '起始日期不可晚於結束日期' });
     }
 
-    const sessions = rollcallLocal
-      .loadSessions()
-      .filter((s) => s.sessionDate && s.sessionDate >= startDate && s.sessionDate <= endDate)
-      .sort((a, b) => String(a.sessionDate).localeCompare(String(b.sessionDate)));
+    const sessions = players.useGoogleSheets()
+      ? await sheets.getAdminRollcallSessionsByDateRange(startDate, endDate)
+      : rollcallLocal
+          .loadSessions()
+          .filter((s) => s.sessionDate && s.sessionDate >= startDate && s.sessionDate <= endDate)
+          .sort((a, b) => String(a.sessionDate).localeCompare(String(b.sessionDate)));
 
     if (sessions.length === 0) {
       return res.status(404).json({ error: `找不到 ${startDate} ~ ${endDate} 的點名資料` });
@@ -194,12 +197,21 @@ router.post('/rollcall', async (req, res) => {
       hour12: false,
     }).format(new Date());
 
-    rollcallLocal.saveSession({
-      sessionDate,
-      submittedAt,
-      records: detailRecords,
-      summary,
-    });
+    if (players.useGoogleSheets()) {
+      await sheets.saveAdminRollcallSession({
+        sessionDate,
+        submittedAt,
+        records: detailRecords,
+        summary,
+      });
+    } else {
+      rollcallLocal.saveSession({
+        sessionDate,
+        submittedAt,
+        records: detailRecords,
+        summary,
+      });
+    }
 
     const emailPayload = {
       sessionDate,
